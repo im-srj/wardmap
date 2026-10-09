@@ -286,11 +286,18 @@ pub fn analyze_text(text: &str) -> Analysis {
     let mut a = analyze_argv(&argv);
     if sudo {
         a.sudo = true;
-        a.issue(
-            Level::Warn,
-            "Cartograph can't run scans as root yet, so this runs without sudo \
-             and root-only options (e.g. -sS, -O) will fail.",
-        );
+        if cfg!(target_os = "linux") {
+            a.issue(
+                Level::Warn,
+                "Runs as root: you'll be asked for your password when the scan starts.",
+            );
+        } else {
+            a.issue(
+                Level::Block,
+                "Running as root from Cartograph only works on Linux so far. \
+                 Remove sudo, or run this command in a terminal.",
+            );
+        }
     }
     a
 }
@@ -843,7 +850,9 @@ mod tests {
         let a = an("sudo /usr/bin/nmap -sS 'my host'");
         assert!(a.sudo);
         assert_eq!(targets(&a), vec!["my host"]);
-        assert!(a.issues.iter().any(|i| i.level == Level::Warn));
+        // sudo = run as root via pkexec; only implemented on Linux.
+        assert_eq!(a.blocked(), !cfg!(target_os = "linux"));
+        assert!(a.issues.iter().any(|i| i.message.contains("root")));
         assert_eq!(an("nmap.exe -F h").argv(), vec!["-F", "h"]);
     }
 
