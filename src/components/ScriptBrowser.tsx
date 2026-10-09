@@ -78,15 +78,16 @@ export function ScriptBrowser({ selected, onChange }: Props) {
       <div className="nse__bar">
         <button
           type="button"
-          className="nse__toggle"
+          className={"nse__toggle" + (open ? " nse__toggle--open" : "")}
           onClick={toggleOpen}
           aria-expanded={open}
         >
           <span className="nse__caret">{open ? "▾" : "▸"}</span>
-          NSE scripts
-          <span className="nse__count">
-            {selected.length > 0 ? `${selected.length} selected` : "none"}
-          </span>
+          {selected.length > 0 ? "NSE scripts" : "Add NSE scripts"}
+          {selected.length > 0 && (
+            <span className="nse__count">{selected.length} selected</span>
+          )}
+          <span className="nse__hint">titles, certs, vuln checks…</span>
         </button>
         {selected.map((id) => (
           <span key={id} className="nse-chip">
