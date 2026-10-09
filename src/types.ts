@@ -6,6 +6,8 @@ export interface Service {
   product: string | null;
   version: string | null;
   extrainfo: string | null;
+  tunnel: string | null; // "ssl" when wrapped in TLS (HTTPS = http + ssl)
+  method: string | null; // "probed" (-sV) or "table" (guessed from port)
 }
 
 export interface ScriptOutput {
