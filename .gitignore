@@ -3,3 +3,6 @@ dist
 src-tauri/target
 .DS_Store
 *.log
+
+# Tauri build-generated capability/ACL schemas (regenerated each build)
+src-tauri/gen/schemas
