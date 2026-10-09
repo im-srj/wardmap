@@ -180,6 +180,24 @@ const PATHS = {
       <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
     </>
   ),
+  phone: (
+    <>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M11 18.5h2" />
+    </>
+  ),
+  tv: (
+    <>
+      <rect x="2.5" y="5" width="19" height="13" rx="2" />
+      <path d="M8 21h8M9 2.5l3 2.5 3-2.5" />
+    </>
+  ),
+  cpu: (
+    <>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+      <path d="M9.5 9.5h5v5h-5zM9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

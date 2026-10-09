@@ -4,6 +4,7 @@
 // specific version — that would need real vulnerability data we don't have.
 
 import type { Host, Port } from "./types";
+import { guessDevice, type DeviceGuess } from "./device";
 
 export type Category =
   | "remote"
@@ -504,113 +505,6 @@ export function describeService(port: Port): ServiceInfo {
   };
 }
 
-// --- Device guess ---------------------------------------------------------
-
-export type DeviceKind =
-  | "self"
-  | "router"
-  | "printer"
-  | "domain-controller"
-  | "windows"
-  | "camera"
-  | "database"
-  | "nas"
-  | "mail"
-  | "web"
-  | "server"
-  | "unknown";
-
-export interface DeviceGuess {
-  kind: DeviceKind;
-  label: string;
-  /** Short human reason, e.g. "IPP printing on 631". Null when no evidence. */
-  because: string | null;
-}
-
-const ROUTER_VENDORS =
-  /tp-?link|netgear|ubiquiti|mikrotik|cisco|juniper|arris|technicolor|zyxel|d-link|huawei|sagemcom|fritz|avm|linksys|draytek/i;
-
-function isGatewayAddr(addr: string): boolean {
-  return /^\d+\.\d+\.\d+\.(1|254)$/.test(addr);
-}
-
-/** Best guess at what a host is, from its open services, address and MAC
- *  vendor. It's a heuristic — the UI must always label it as a guess. */
-export function guessDevice(
-  addr: string,
-  vendor: string | null,
-  services: ServiceInfo[],
-): DeviceGuess {
-  const has = (...keys: string[]) =>
-    services.find((s) => s.key !== null && keys.includes(s.key));
-  const why = (s: ServiceInfo | undefined) =>
-    s ? `${s.label} on ${s.port.portid}` : null;
-
-  if (/^127\./.test(addr) || addr === "::1") {
-    return {
-      kind: "self",
-      label: "This computer",
-      because: "loopback address",
-    };
-  }
-  const print = has("ipp", "printer", "jetdirect");
-  if (print) return { kind: "printer", label: "Printer", because: why(print) };
-
-  const dns = has("domain");
-  const routerVendor = vendor && ROUTER_VENDORS.test(vendor);
-  if ((dns || has("upnp")) && (isGatewayAddr(addr) || routerVendor)) {
-    return {
-      kind: "router",
-      label: "Router / gateway",
-      because: routerVendor
-        ? `${vendor} hardware, ${why(dns ?? has("upnp"))}`
-        : `${why(dns ?? has("upnp"))} at a gateway address`,
-    };
-  }
-  const kerb = has("kerberos-sec");
-  if (kerb && has("ldap", "ldaps")) {
-    return {
-      kind: "domain-controller",
-      label: "Windows domain controller",
-      because: "Kerberos + LDAP",
-    };
-  }
-  const rdp = has("ms-wbt-server");
-  if (rdp || (has("msrpc") && has("microsoft-ds"))) {
-    return {
-      kind: "windows",
-      label: "Windows computer",
-      because: rdp ? why(rdp) : "Microsoft RPC + SMB",
-    };
-  }
-  const cam = has("rtsp");
-  if (cam)
-    return {
-      kind: "camera",
-      label: "Camera / media device",
-      because: why(cam),
-    };
-  const db = services.find((s) => s.category === "database");
-  if (db)
-    return { kind: "database", label: "Database server", because: why(db) };
-  const files = has("microsoft-ds", "nfs", "afp");
-  if (files)
-    return { kind: "nas", label: "File server / NAS", because: why(files) };
-  const mail = services.find((s) => s.category === "mail");
-  if (mail) return { kind: "mail", label: "Mail server", because: why(mail) };
-  const web = services.find((s) => s.category === "web");
-  if (web) return { kind: "web", label: "Web server", because: why(web) };
-  const ssh = has("ssh");
-  if (ssh) return { kind: "server", label: "Server", because: why(ssh) };
-  if (vendor)
-    return {
-      kind: "unknown",
-      label: `${vendor} device`,
-      because: "MAC vendor",
-    };
-  return { kind: "unknown", label: "Unknown device", because: null };
-}
-
 // --- Per-host model -------------------------------------------------------
 
 export interface HostExposure {
@@ -658,7 +552,13 @@ export function hostExposure(h: Host): HostExposure {
     subnet: subnetOf(addr),
     services,
     hiddenPorts: h.ports.length - services.length,
-    device: guessDevice(addr, vendor, services),
+    device: guessDevice({
+      addr,
+      names: h.hostnames,
+      vendor,
+      macRandomized: false,
+      services,
+    }),
     reviewCount: services.filter((s) => s.review).length,
     cleartextCount: services.filter((s) => s.cleartext).length,
   };

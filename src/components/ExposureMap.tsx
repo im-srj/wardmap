@@ -9,7 +9,7 @@ import {
   type HostExposure,
   type ServiceInfo,
 } from "../exposure";
-import type { DeviceKind } from "../exposure";
+import type { DeviceKind } from "../device";
 import { Icon, type IconName } from "./Icon";
 
 const DEVICE_ICONS: Record<DeviceKind, IconName> = {
@@ -18,6 +18,12 @@ const DEVICE_ICONS: Record<DeviceKind, IconName> = {
   printer: "printer",
   "domain-controller": "key",
   windows: "monitor",
+  computer: "monitor",
+  apple: "laptop",
+  phone: "phone",
+  tv: "tv",
+  iot: "cpu",
+  vm: "server",
   camera: "camera",
   database: "database",
   nas: "hardDrive",
@@ -197,7 +203,8 @@ export function ExposureMap({ result }: { result: ScanResult }) {
             <span>
               Hosts are grouped by /24 subnet; no connecting lines are drawn
               because real routing paths need nmap's <code>--traceroute</code>,
-              which requires root. Device types are guesses from open services.
+              which requires root. Device types are guesses from names, MAC
+              vendor and open services.
             </span>
           </p>
         </div>
@@ -233,7 +240,10 @@ function HostCard({
         <span className="xhost__titles">
           <span className="xhost__name">{h.name ?? h.addr}</span>
           {h.name && <span className="xhost__addr mono">{h.addr}</span>}
-          <span className="xhost__sub">{h.device.label}</span>
+          <span className="xhost__sub">
+            {h.device.label}
+            {h.device.role && ` · ${h.device.role}`}
+          </span>
         </span>
         {attention > 0 && (
           <span
@@ -294,7 +304,12 @@ function HostDetail({
       </div>
 
       <div className="xdetail__guess">
-        <span className="xdetail__guess-label">{h.device.label}</span>
+        <span className="xdetail__guess-label">
+          {h.device.label}
+          {h.device.role && (
+            <span className="xdetail__role"> · {h.device.role}</span>
+          )}
+        </span>
         <span className="tag">guess</span>
         {h.device.because && (
           <span className="xdetail__because">based on {h.device.because}</span>
