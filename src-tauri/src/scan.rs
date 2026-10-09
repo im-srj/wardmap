@@ -459,9 +459,7 @@ fn attr(node: Node, name: &str) -> Option<String> {
 /// interpreted as an nmap flag. `flags` are expected to be app-controlled
 /// presets, not free text.
 pub fn run_nmap_raw(target: &str, flags: &[String]) -> Result<String, ScanError> {
-    if target.trim().is_empty() || target.starts_with('-') {
-        return Err(ScanError::InvalidTarget(target.to_string()));
-    }
+    validate_target(target)?;
 
     let output = Command::new("nmap")
         .args(flags)
@@ -479,6 +477,40 @@ pub fn run_nmap_raw(target: &str, flags: &[String]) -> Result<String, ScanError>
     }
 
     String::from_utf8(output.stdout).map_err(ScanError::Utf8)
+}
+
+/// Flag-injection guard shared by every spawn path: the target is free text,
+/// so it must be non-empty and must not start with `-`.
+pub fn validate_target(target: &str) -> Result<(), ScanError> {
+    if target.trim().is_empty() || target.starts_with('-') {
+        return Err(ScanError::InvalidTarget(target.to_string()));
+    }
+    Ok(())
+}
+
+/// The installed nmap's version string (e.g. "7.94SVN"), via `nmap --version`.
+/// Used as the startup preflight: an error here means nmap isn't runnable.
+pub fn nmap_version() -> Result<String, ScanError> {
+    let output = Command::new("nmap")
+        .arg("--version")
+        .output()
+        .map_err(ScanError::Spawn)?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_version(&stdout).ok_or_else(|| ScanError::NmapFailed {
+        code: output.status.code(),
+        stderr: format!("unrecognised `nmap --version` output: {}", stdout.trim()),
+    })
+}
+
+/// Pull the version out of `nmap --version`'s first line
+/// ("Nmap version 7.94SVN ( https://nmap.org )"). nmap has no XML form of
+/// this, so it's the one place we read its plain-text output.
+fn parse_version(stdout: &str) -> Option<String> {
+    stdout
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("Nmap version "))
+        .and_then(|rest| rest.split_whitespace().next())
+        .map(str::to_string)
 }
 
 /// Run a scan and parse it in one step. Used by the example harness and the
@@ -687,5 +719,30 @@ mod tests {
             run_scan("-oG /tmp/evil", &[]),
             Err(ScanError::InvalidTarget(_))
         ));
+    }
+
+    #[test]
+    fn parses_nmap_version_line() {
+        let out = "Nmap version 7.94SVN ( https://nmap.org )\nPlatform: x86_64-pc-linux-gnu\n";
+        assert_eq!(parse_version(out).as_deref(), Some("7.94SVN"));
+        assert_eq!(
+            parse_version("Nmap version 7.95 ( https://nmap.org )").as_deref(),
+            Some("7.95")
+        );
+        assert_eq!(parse_version("bash: nmap: command not found"), None);
+    }
+
+    #[test]
+    fn progress_elements_do_not_disturb_parsing() {
+        // --stats-every interleaves <taskprogress> inside <nmaprun>.
+        let r = parse_nmap_xml(include_str!("../tests/fixtures/localhost-progress.xml")).unwrap();
+        assert_eq!(r.hosts.len(), 1);
+        let open: Vec<u16> = r.hosts[0]
+            .ports
+            .iter()
+            .filter(|p| p.state == "open")
+            .map(|p| p.portid)
+            .collect();
+        assert_eq!(open, vec![80, 631]);
     }
 }
