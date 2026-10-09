@@ -91,8 +91,20 @@ export function quoteArg(tok: string): string {
 }
 
 /** The full command line: options, then the target text exactly as typed
- *  (it may hold several space-separated targets). */
-export function commandText(items: CmdItem[], target: string): string {
+ *  (it may hold several space-separated targets). A `sudo` prefix is how the
+ *  backend knows to run nmap as root (it asks for the password each time). */
+export function commandText(
+  items: CmdItem[],
+  target: string,
+  sudo = false,
+): string {
   const opts = items.flatMap((i) => i.tokens).map(quoteArg);
-  return ["nmap", ...opts, target.trim()].filter(Boolean).join(" ");
+  return [sudo ? "sudo" : "", "nmap", ...opts, target.trim()]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** Any option that needs raw-socket privileges? */
+export function needsRoot(items: CmdItem[]): boolean {
+  return items.some((i) => findOption(i.name)?.root);
 }

@@ -42,6 +42,10 @@ pub enum RunError {
     DuplicateRun(String),
     /// The command failed Cartograph's checks (see `cmdline`); never spawned.
     Blocked(String),
+    /// The user dismissed the password dialog for a root scan.
+    AuthCancelled,
+    /// pkexec refused (wrong password, not allowed, or no polkit agent).
+    NotAuthorized(String),
 }
 
 impl std::fmt::Display for RunError {
@@ -51,6 +55,16 @@ impl std::fmt::Display for RunError {
             RunError::Cancelled => write!(f, "scan cancelled"),
             RunError::DuplicateRun(id) => write!(f, "a scan with id {id:?} is already running"),
             RunError::Blocked(why) => write!(f, "{why}"),
+            RunError::AuthCancelled => write!(f, "authentication cancelled; the scan didn't run"),
+            RunError::NotAuthorized(why) => write!(
+                f,
+                "couldn't run nmap as root: {}",
+                if why.trim().is_empty() {
+                    "not authorized"
+                } else {
+                    why.trim()
+                }
+            ),
         }
     }
 }
@@ -66,6 +80,20 @@ impl From<ScanError> for RunError {
 struct Running {
     child: Child,
     cancelled: bool,
+    /// Write end of nmap's pseudo-terminal: Ctrl-C written here makes the
+    /// kernel send SIGINT to nmap. That works even when nmap runs as root,
+    /// which our own (unprivileged) `kill` can't signal.
+    interrupt: Option<std::fs::File>,
+}
+
+impl Running {
+    fn stop(&mut self) {
+        if let Some(tty) = self.interrupt.as_mut() {
+            use std::io::Write;
+            let _ = tty.write_all(b"\x03");
+        }
+        let _ = self.child.kill(); // EPERM for a root nmap; ^C covers that
+    }
 }
 
 /// Registry of in-flight nmap processes, keyed by a caller-chosen run id.
@@ -80,7 +108,7 @@ impl Runs {
         match runs.get_mut(run_id) {
             Some(r) => {
                 r.cancelled = true;
-                let _ = r.child.kill();
+                r.stop();
                 true
             }
             None => false,
@@ -91,7 +119,7 @@ impl Runs {
     pub fn kill_all(&self) {
         let mut runs = self.0.lock().unwrap_or_else(|e| e.into_inner());
         for r in runs.values_mut() {
-            let _ = r.child.kill();
+            r.stop();
         }
     }
 }
@@ -111,15 +139,18 @@ pub fn run(
         return Err(RunError::Blocked(command.block_reasons()));
     }
 
+    let elevated = needs_pkexec(command);
+    let mut cmd = launcher(elevated)?;
     // Our capture flags go first; policy guarantees the user's argv contains
     // no output options or --stats-every to contradict them.
-    let mut cmd = Command::new("nmap");
     cmd.args(["--stats-every", "1s", "-oX", "-"])
         .args(command.argv())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(unix)]
-    pty::attach(&mut cmd);
+    let interrupt = pty::attach(&mut cmd);
+    #[cfg(not(unix))]
+    let interrupt = None;
 
     let mut child = cmd.spawn().map_err(ScanError::Spawn)?;
     let stdout = child.stdout.take().expect("stdout is piped");
@@ -137,6 +168,7 @@ pub fn run(
             Running {
                 child,
                 cancelled: false,
+                interrupt,
             },
         );
     }
@@ -153,6 +185,7 @@ pub fn run(
     let Running {
         mut child,
         cancelled,
+        ..
     } = runs
         .0
         .lock()
@@ -165,6 +198,14 @@ pub fn run(
     if cancelled {
         return Err(RunError::Cancelled);
     }
+    // pkexec's own exit codes (nmap itself only uses 0/1/255).
+    if elevated {
+        match status.code() {
+            Some(126) => return Err(RunError::AuthCancelled),
+            Some(127) => return Err(RunError::NotAuthorized(stderr)),
+            _ => {}
+        }
+    }
     if !status.success() {
         return Err(ScanError::NmapFailed {
             code: status.code(),
@@ -174,6 +215,49 @@ pub fn run(
     }
     let xml = xml.map_err(ScanError::Spawn)?;
     String::from_utf8(xml).map_err(|e| ScanError::Utf8(e).into())
+}
+
+/// A `sudo` command runs nmap as root through pkexec — unless we already are
+/// root. pkexec shows the desktop's own password dialog every time (the
+/// user chose per-scan prompting over a standing setcap on nmap).
+fn needs_pkexec(command: &Analysis) -> bool {
+    #[cfg(unix)]
+    // SAFETY: geteuid has no preconditions and cannot fail.
+    let root = unsafe { libc::geteuid() } == 0;
+    #[cfg(not(unix))]
+    let root = false;
+    command.sudo && !root
+}
+
+fn launcher(elevated: bool) -> Result<Command, RunError> {
+    if !elevated {
+        return Ok(Command::new("nmap"));
+    }
+    if !cfg!(target_os = "linux") {
+        // cmdline already blocks this off Linux; a second guard here.
+        return Err(RunError::Blocked(
+            "running as root is only supported on Linux so far".into(),
+        ));
+    }
+    // pkexec wants an absolute path; it is also what the dialog names.
+    let nmap = find_in_path("nmap").ok_or_else(|| {
+        RunError::Scan(ScanError::Spawn(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "nmap not found on PATH",
+        )))
+    })?;
+    let mut cmd = Command::new("pkexec");
+    // Never fall back to pkexec's text prompt: it would ask on nmap's
+    // pseudo-terminal, where nobody can answer. Without a desktop polkit
+    // agent, pkexec fails fast (exit 127) instead.
+    cmd.arg("--disable-internal-agent").arg(nmap);
+    Ok(cmd)
+}
+
+fn find_in_path(name: &str) -> Option<std::path::PathBuf> {
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|dir| dir.join(name))
+        .find(|p| p.is_file())
 }
 
 /// Read nmap's stdout to EOF, returning every byte, while reporting each
@@ -241,9 +325,11 @@ mod pty {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
 
-    /// Make a fresh pseudo-terminal nmap's stdin and controlling terminal.
-    /// On any failure, leave `cmd` untouched (scan runs without progress).
-    pub fn attach(cmd: &mut Command) {
+    /// Make a fresh pseudo-terminal nmap's stdin and controlling terminal,
+    /// returning a write handle to it (for Ctrl-C). On any failure, leave
+    /// `cmd` untouched: the scan runs without progress, and only `kill` can
+    /// cancel it.
+    pub fn attach(cmd: &mut Command) -> Option<File> {
         let (mut master, mut slave) = (-1, -1);
         // SAFETY: openpty writes two fds into the out-params; null name/
         // termios/winsize are permitted.
@@ -257,15 +343,19 @@ mod pty {
             )
         };
         if rc != 0 {
-            return;
+            return None;
         }
         // SAFETY: both fds were just returned by openpty and are owned here.
         let (master, slave) =
             unsafe { (OwnedFd::from_raw_fd(master), OwnedFd::from_raw_fd(slave)) };
 
-        cmd.stdin(Stdio::from(slave)); // dropped (closed) in parent after spawn
-                                       // SAFETY: only async-signal-safe calls (setsid, ioctl) between fork
-                                       // and exec. By this point std has already dup'd the slave onto fd 0.
+        let master = File::from(master);
+        let interrupt = master.try_clone().ok()?;
+
+        // The slave is dropped (closed) in the parent after spawn.
+        cmd.stdin(Stdio::from(slave));
+        // SAFETY: only async-signal-safe calls (setsid, ioctl) between fork
+        // and exec. By this point std has already dup'd the slave onto fd 0.
         unsafe {
             cmd.pre_exec(|| {
                 if libc::setsid() == -1 || libc::ioctl(0, libc::TIOCSCTTY as _, 0) == -1 {
@@ -279,9 +369,10 @@ mod pty {
         // nmap's terminal) and drain anything nmap writes to the tty. The read
         // fails with EIO once nmap exits and the last slave fd closes.
         std::thread::spawn(move || {
-            let mut master = File::from(master);
+            let mut master = master;
             let _ = std::io::copy(&mut master, &mut std::io::sink());
         });
+        Some(interrupt)
     }
 }
 
@@ -367,6 +458,7 @@ mod tests {
             Running {
                 child,
                 cancelled: false,
+                interrupt: None,
             },
         );
         assert!(runs.cancel("r1"));
@@ -404,6 +496,58 @@ mod tests {
         assert!(matches!(handle.join().unwrap(), Err(RunError::Cancelled)));
         assert!(started.elapsed().as_secs() < 4);
         assert!(runs.0.lock().unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "needs nmap installed"]
+    fn live_ctrl_c_alone_stops_nmap() {
+        // nmap switches its tty to non-canonical mode; ISIG must survive that
+        // for cancel to work on a root nmap. Send ^C only — no kill.
+        use std::io::Write;
+        let runs = std::sync::Arc::new(Runs::default());
+        let r2 = runs.clone();
+        let started = std::time::Instant::now();
+        let handle = std::thread::spawn(move || run(&r2, "i", &slow_scan(), |_| {}));
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        {
+            let mut map = runs.0.lock().unwrap();
+            let r = map.get_mut("i").unwrap();
+            r.interrupt.as_mut().unwrap().write_all(b"\x03").unwrap();
+        }
+        assert!(handle.join().unwrap().is_err()); // interrupted, not completed
+        assert!(started.elapsed().as_secs() < 4);
+    }
+
+    /// Cancel's Ctrl-C path on its own: the kernel turns ^C on the pty into
+    /// SIGINT for the foreground process, whoever owns it — this is what
+    /// stops a root nmap we aren't allowed to `kill`.
+    #[cfg(unix)]
+    #[test]
+    fn ctrl_c_on_the_pty_interrupts_the_process() {
+        use std::io::Write;
+        use std::os::unix::process::ExitStatusExt;
+        let mut cmd = Command::new("sleep");
+        cmd.arg("30");
+        let mut tty = pty::attach(&mut cmd).expect("pty available");
+        let mut child = cmd.spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        tty.write_all(b"\x03").unwrap();
+        let status = child.wait().unwrap();
+        assert_eq!(status.signal(), Some(libc::SIGINT));
+    }
+
+    #[test]
+    fn only_sudo_commands_are_elevated() {
+        let plain = crate::cmdline::analyze_text("nmap -sS localhost");
+        assert!(!needs_pkexec(&plain));
+        let sudo = crate::cmdline::analyze_text("sudo nmap -sS localhost");
+        // (Unless the tests themselves run as root.)
+        #[cfg(unix)]
+        let root = unsafe { libc::geteuid() } == 0;
+        #[cfg(not(unix))]
+        let root = false;
+        assert_eq!(needs_pkexec(&sudo), !root);
     }
 
     #[test]

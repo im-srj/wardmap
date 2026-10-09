@@ -10,9 +10,10 @@ interface Props {
   onEdit: (text: string) => void;
 }
 
-/** Token class for light syntax colouring: the binary, flags, and the rest. */
-function tokenClass(tok: string, i: number): string {
-  if (i === 0) return "tok-cmd";
+/** Token class for light syntax colouring: the binary (and a leading
+ *  `sudo`), flags, and the rest. */
+function tokenClass(tok: string, i: number, toks: string[]): string {
+  if (i === 0 || (i === 1 && toks[0] === "sudo")) return "tok-cmd";
   if (tok.startsWith("-")) return "tok-flag";
   return "tok-arg";
 }
@@ -133,8 +134,8 @@ export function CommandPreview({ command, issues, onEdit }: Props) {
           <span className="tok-prompt" aria-hidden="true">
             $
           </span>
-          {command.split(" ").map((tok, i) => (
-            <span key={i} className={tokenClass(tok, i)}>
+          {command.split(" ").map((tok, i, toks) => (
+            <span key={i} className={tokenClass(tok, i, toks)}>
               {i > 0 ? " " : ""}
               {tok}
             </span>
