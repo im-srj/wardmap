@@ -103,23 +103,30 @@ original plan:
   `-sL -n` "preview targets" check, warnings for huge target ranges or
   aggressive timing, and a dedicated port-range editor or timing slider.
 
-## M11 — Privileged scans
+## M11 — Privileged scans  *(Linux DONE 2026-10-09; macOS/Windows pending)*
 
-Without this, half the catalogue is greyed out. Elevation is explicit and
-per scan, matching the "explicit user action" rule.
+Decision (user, 2026-10-09): **ask for the password every scan**. No
+standing `setcap` on nmap, so other local users don't get raw-socket scans.
 
-- **Detect** at startup: euid; on Linux `getcap` on the nmap binary
-  (`cap_net_raw,cap_net_admin+eip` ⇒ run with `--privileged`); on Windows,
-  admin + Npcap present.
-- **Elevate per scan** (only that nmap process; the app and DB stay
-  unprivileged, and XML still comes back on stdout):
-  Linux `pkexec nmap …` · macOS
-  `osascript … with administrator privileges` · Windows UAC `runas`.
-- **Optional one-time Linux setup** (setcap on nmap) offered from a settings
-  screen, with an honest note on the tradeoff: any local user can then do raw
-  packet scans.
-- UI: root-requiring options show "will ask for your password". The preview
-  shows `sudo nmap …` when elevation applies, so it stays copy-pasteable.
+- `sudo` at the start of the command means "run as root". The **Run as root**
+  checkbox adds or removes it; it ticks itself when any root-only option is
+  set, and an explicit choice (checkbox, or typing/removing `sudo`) overrides
+  that. The preview therefore stays an exact, copy-pasteable command.
+- Linux: `pkexec --disable-internal-agent /usr/bin/nmap …` shows the
+  desktop's polkit password dialog. Using `--disable-internal-agent` matters:
+  otherwise, with no GUI agent, pkexec would prompt on nmap's pty, where
+  nobody can answer. Exit 126 (dialog dismissed) → "authentication
+  cancelled"; 127 → "couldn't run nmap as root". Already root → no pkexec.
+- **Cancel for a root nmap:** our unprivileged `kill` can't signal it, so
+  Cancel first writes Ctrl-C to nmap's pty and the kernel delivers SIGINT
+  regardless of owner. Verified live: ^C alone stops nmap; nmap's
+  non-canonical tty mode keeps ISIG. `kill` remains the fallback.
+- **macOS/Windows: not implemented, and blocked with a clear message.**
+  macOS needs `osascript … with administrator privileges` (it goes through
+  `sh`, so needs careful quoting, returns output only at the end, and has
+  no pty). Windows needs UAC `runas`, which gives no stdout pipe, so the XML
+  would go to a temp file. Both need a real Mac/Windows box to verify, so
+  they're folded into M7.
 
 ## M12 — Profiles, re-run, import/export  *(Zenmap parity and beyond)*
 
