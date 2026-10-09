@@ -1,12 +1,15 @@
 import type { FormEvent } from "react";
-import { PRESETS, buildCommand, type Preset } from "../presets";
+import { PRESETS, buildCommand, buildFlags, type Preset } from "../presets";
 import { CommandPreview } from "./CommandPreview";
+import { ScriptBrowser } from "./ScriptBrowser";
 
 interface Props {
   target: string;
   onTargetChange: (t: string) => void;
   preset: Preset;
   onPresetChange: (p: Preset) => void;
+  scripts: string[];
+  onScriptsChange: (ids: string[]) => void;
   onRun: () => void;
   scanning: boolean;
 }
@@ -16,10 +19,12 @@ export function ScanForm({
   onTargetChange,
   preset,
   onPresetChange,
+  scripts,
+  onScriptsChange,
   onRun,
   scanning,
 }: Props) {
-  const command = buildCommand(preset.flags, target);
+  const command = buildCommand(buildFlags(preset, scripts), target);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +78,8 @@ export function ScanForm({
           ))}
         </div>
       </fieldset>
+
+      <ScriptBrowser selected={scripts} onChange={onScriptsChange} />
 
       <CommandPreview command={command} />
     </form>

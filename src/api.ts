@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ScanDiff, ScanResult, StoredScan } from "./types";
+import type { NseScript, ScanDiff, ScanResult, StoredScan } from "./types";
 
 /**
  * Run an nmap scan via the Rust backend. `flags` are the preset flags only;
@@ -30,4 +30,9 @@ export async function diffScans(
   newId: number,
 ): Promise<ScanDiff> {
   return invoke<ScanDiff>("diff_scans", { oldId, newId });
+}
+
+/** The installed nmap's NSE script catalogue (`nmap --script-help all`). */
+export async function listNseScripts(): Promise<NseScript[]> {
+  return invoke<NseScript[]>("list_nse_scripts");
 }

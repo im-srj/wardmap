@@ -79,3 +79,11 @@ export interface ScanDiff {
   hosts: HostDiff[];
   unchanged: boolean;
 }
+
+// --- NSE (mirrors nse::NseScript) ---
+
+export interface NseScript {
+  id: string; // the name passed to --script, e.g. "ssl-cert"
+  categories: string[];
+  description: string;
+}
