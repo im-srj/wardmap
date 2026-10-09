@@ -1,6 +1,6 @@
 # Cartograph roadmap — full nmap coverage (post-M6)
 
-Status as of 2026-10-09: M0–M6 done, plus the UI overhaul, exposure map and
+Status as of 2026-10-09: M0–M6 and M8–M12 done (M11 Linux-only), plus the UI overhaul, exposure map and
 device identification. M7 (packaging) has not started. This document plans the
 next stretch: **every nmap option is reachable from the GUI, and a power user
 can type or paste any nmap command and run it.**
@@ -128,21 +128,48 @@ standing `setcap` on nmap, so other local users don't get raw-socket scans.
   would go to a temp file. Both need a real Mac/Windows box to verify, so
   they're folded into M7.
 
-## M12 — Profiles, re-run, import/export  *(Zenmap parity and beyond)*
+## M12 — Profiles, re-run, import/export  *(DONE 2026-10-09)*
 
-- **Profiles:** save/name/edit builder states (SQLite `profiles` table).
-  Built-ins: Quick, Regular, Intense (`-T4 -A`), Ping sweep (`-sn`),
-  UDP top-100, Full TCP (`-p-`), Vuln scripts. Import Zenmap's
-  `scan_profile.usp` (INI) for migrating users.
-- **Re-run / edit from history:** load a saved scan's argv into the builder.
-  It only runs when the user presses Run (explicit action, per the non-goals),
-  and the new result diffs against the old one automatically (ties to M4).
-- **Import** existing nmap XML files (from CLI runs / other machines) into
-  history. The parser already handles them.
-- **Export:** raw XML, normal/grepable text (our own formatter over the
-  saved XML, so no re-scan), JSON, CSV, a standalone HTML report, and
-  "copy command".
-- Multiple concurrent scans + a small run queue (each is explicit user action).
+What shipped, and where it differs from the original plan:
+
+- **Profiles.** Eight built-ins in `src/presets.ts` (Quick, Regular,
+  Service+version, Intense `-T4 -A`, Ping sweep `-sn`, UDP top 100, Full TCP
+  `-p-`, Vuln scripts `-sV --script vuln`) plus the user's own, stored in a
+  SQLite `profiles` table as option text. **Behaviour change:** picking a
+  profile now *replaces* the whole option set (the target stays). Before,
+  presets only swapped their own flags. Saved profiles hold full builder
+  states, so replacing is the only predictable rule. Profiles never store
+  targets (`cmdline::options_only`). "Update" overwrites the profile you
+  loaded; delete needs a second click. **Zenmap import** reads
+  `scan_profile.usp` (`profiles.rs`, ConfigParser-style INI, continuation
+  lines). Names that already exist are skipped, never overwritten.
+- **Re-run from history.** Every saved scan has a `command`: the exact text
+  the user ran (new `scans.command` column, added in place on old
+  databases). For imported or older scans it is rebuilt from nmap's recorded
+  args, without output and progress flags (`cmdline::command_from_args`).
+  Re-run loads it into the form and runs only when the user presses Run.
+  The result then shows a "changed since…" banner with a link to the diff.
+- **Import nmap XML** (sidebar ↑ button): native multi-file picker. Each
+  file is parsed, dated by nmap's own start time, and skipped if the
+  identical XML is already in history.
+- **Export** (saved-scan toolbar): nmap XML (verbatim), JSON, CSV,
+  normal (`-oN`-like), grepable (`-oG`-like), and a standalone HTML report
+  (inline CSS, no external resources, everything escaped). Also "Copy
+  command". `export.rs` renders from the stored XML. The text formats were
+  checked against real nmap output; they lack what the XML doesn't carry
+  (latency, "Not shown: N closed", nmap's `?` on guessed service names).
+- **File dialogs are opened by the backend** (`tauri-plugin-dialog`'s Rust
+  API), so the webview never names a path to read or write, and no
+  JS-side capability is granted.
+- **Concurrent scans + queue:** up to 2 run at once, the rest queue (sidebar
+  rows; a queued run can be removed). Running an identical command again
+  shows the one already in flight. A background scan that fails reports
+  through a dismissable notice. `run_nmap_scan` now returns
+  `{ scanId, result }`, so history ids no longer have to be guessed.
+- **Not done (follow-ups):** editing a profile's name or description in place
+  (for now: save as new, then delete the old one), auto-diffing against the
+  previous scan of the same target when it wasn't a re-run, and "export
+  after scan" for `-oX file` typed into the command (still blocked).
 
 ## M7 — Packaging  *(moved after M8–M11)*
 

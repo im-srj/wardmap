@@ -59,6 +59,21 @@ const PATHS = {
     </>
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  download: <path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 20h14" />,
+  upload: <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 20h14" />,
+  rerun: (
+    <>
+      <path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5" />
+      <path d="M20 4v4.5h-4.5" />
+    </>
+  ),
+  save: (
+    <>
+      <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+      <path d="M8 4v5h7V4M8 20v-6h8v6" />
+    </>
+  ),
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
   x: <path d="M6 6l12 12M18 6 6 18" />,
   alert: (
     <>

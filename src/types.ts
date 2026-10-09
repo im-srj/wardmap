@@ -111,11 +111,43 @@ export interface StoredScan {
   id: number;
   target: string;
   args: string;
+  /** The command to run it again (what the user ran, or rebuilt from args
+   *  for imported / older scans). */
+  command: string;
   createdAt: number; // unix epoch seconds
   hostsUp: number;
   openPorts: number;
   elapsedSecs: number | null;
 }
+
+/** A finished scan (mirrors commands::ScanOutcome). */
+export interface ScanOutcome {
+  scanId: number;
+  result: ScanResult;
+}
+
+/** A saved scan profile (mirrors commands::Profile). */
+export interface Profile {
+  id: number;
+  name: string;
+  description: string;
+  /** Its options as typed after `nmap` (never targets). */
+  command: string;
+  /** The backend's reading of `command`. */
+  items: CmdItem[];
+}
+
+/** What an import did (mirrors commands::ImportReport). */
+export interface ImportReport {
+  imported: number;
+  /** Already present (same XML / same profile name). */
+  skipped: number;
+  errors: string[];
+}
+
+/** Mirrors export::Format. */
+export type ExportFormat =
+  "xml" | "json" | "csv" | "normal" | "grepable" | "html";
 
 // --- Diff (mirrors diff::ScanDiff) ---
 

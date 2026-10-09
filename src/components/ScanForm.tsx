@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { findOption, setOption } from "../options";
-import { PRESETS, applyPreset, matchingPreset } from "../presets";
-import type { CmdIssue, CmdItem } from "../types";
+import { PRESETS, sameOptions } from "../presets";
+import type { CmdIssue, CmdItem, Profile, StoredScan } from "../types";
 import { CommandPreview } from "./CommandPreview";
-import { Icon, type IconName } from "./Icon";
+import { relativeTime } from "./HistoryList";
+import { Icon } from "./Icon";
 import { OptionsBuilder } from "./OptionsBuilder";
+import { ProfilePicker } from "./ProfilePicker";
 import { ScriptBrowser } from "./ScriptBrowser";
 
 interface Props {
@@ -24,17 +26,23 @@ interface Props {
   /** The backend has checked the current command and nothing blocks it. */
   canRun: boolean;
   onRun: () => void;
-  scanning: boolean;
+  /** As many scans are running as may run at once: Run queues instead. */
+  queueFull: boolean;
+  /** Re-running this saved scan: its result will be compared with it. */
+  rerunOf: StoredScan | null;
+  onClearRerun: () => void;
+  profiles: Profile[];
+  onSaveProfile: (
+    id: number | null,
+    name: string,
+    description: string,
+  ) => Promise<Profile>;
+  onDeleteProfile: (id: number) => Promise<void>;
+  onImportZenmap: () => void;
   /** Fold the profile/NSE options behind a summary row (used while results
    *  are on screen). The command preview always stays visible. */
   collapsible: boolean;
 }
-
-const PRESET_ICONS: Record<string, IconName> = {
-  quick: "zap",
-  regular: "layers",
-  version: "fingerprint",
-};
 
 const SCRIPT_DEF = findOption("--script")!;
 
@@ -50,12 +58,20 @@ export function ScanForm({
   onEditCommand,
   canRun,
   onRun,
-  scanning,
+  queueFull,
+  rerunOf,
+  onClearRerun,
+  profiles,
+  onSaveProfile,
+  onDeleteProfile,
+  onImportZenmap,
   collapsible,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const showOptions = !collapsible || expanded;
-  const preset = matchingPreset(items);
+  const profileName =
+    PRESETS.find((p) => sameOptions(items, p.items))?.label ??
+    profiles.find((p) => sameOptions(items, p.items))?.name;
 
   // The script browser edits the --script option's comma list. Categories or
   // expressions typed into the command line ride along untouched.
@@ -72,7 +88,7 @@ export function ScanForm({
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!scanning && canRun) onRun();
+    if (canRun) onRun();
   }
 
   return (
@@ -95,21 +111,36 @@ export function ScanForm({
         <button
           type="submit"
           className="btn btn--primary btn--lg"
-          disabled={scanning || !canRun}
+          disabled={!canRun}
+          title={
+            queueFull
+              ? "Other scans are running; this one starts when one finishes"
+              : undefined
+          }
         >
-          {scanning ? (
-            <>
-              <span className="spinner" aria-hidden="true" />
-              Scanning…
-            </>
-          ) : (
-            <>
-              <Icon name="play" size={15} />
-              Run scan
-            </>
-          )}
+          <Icon name={queueFull ? "list" : "play"} size={15} />
+          {queueFull ? "Queue scan" : "Run scan"}
         </button>
       </div>
+
+      {rerunOf && (
+        <div className="rerun-note">
+          <Icon name="rerun" size={14} />
+          <span>
+            Re-running the scan from {relativeTime(rerunOf.createdAt)} — the
+            result will be compared with it.
+          </span>
+          <button
+            type="button"
+            className="icon-btn icon-btn--sm"
+            onClick={onClearRerun}
+            aria-label="Don't compare with the earlier scan"
+            title="Don't compare"
+          >
+            <Icon name="x" size={13} />
+          </button>
+        </div>
+      )}
 
       <label className="elevate">
         <input
@@ -137,7 +168,7 @@ export function ScanForm({
           <span className="options-toggle__label">Scan options</span>
           {!expanded && (
             <span className="options-toggle__summary">
-              {preset?.label ?? "Custom"}
+              {profileName ?? "Custom"}
               {items.length > 0 &&
                 ` · ${items.length} option${items.length === 1 ? "" : "s"}`}
             </span>
@@ -146,41 +177,14 @@ export function ScanForm({
       )}
 
       {showOptions && (
-        <fieldset className="presets">
-          <legend className="section-label">Scan profile</legend>
-          <div className="presets__options">
-            {PRESETS.map((p) => (
-              <label
-                key={p.id}
-                className={
-                  "preset" + (p.id === preset?.id ? " preset--active" : "")
-                }
-              >
-                <input
-                  type="radio"
-                  name="preset"
-                  value={p.id}
-                  checked={p.id === preset?.id}
-                  onChange={() => onItemsChange(applyPreset(items, p))}
-                />
-                <span className="preset__icon">
-                  <Icon name={PRESET_ICONS[p.id] ?? "layers"} size={16} />
-                </span>
-                <span className="preset__text">
-                  <span className="preset__label">
-                    {p.label}
-                    <code className="preset__flags">
-                      {p.items.length
-                        ? p.items.flatMap((i) => i.tokens).join(" ")
-                        : "default"}
-                    </code>
-                  </span>
-                  <span className="preset__desc">{p.description}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <ProfilePicker
+          items={items}
+          onApply={onItemsChange}
+          profiles={profiles}
+          onSave={onSaveProfile}
+          onDelete={onDeleteProfile}
+          onImportZenmap={onImportZenmap}
+        />
       )}
 
       <ScriptBrowser

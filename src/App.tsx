@@ -2,10 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   analyzeCommand,
   cancelScan,
+  deleteProfile,
   diffScans,
+  exportScan,
   getScan,
+  importScans,
+  importZenmapProfiles,
+  listProfiles,
   listScans,
+  newRunId,
   nmapVersion,
+  saveProfile,
   startScan,
 } from "./api";
 import { PRESETS } from "./presets";
@@ -17,12 +24,16 @@ import { ExposureMap } from "./components/ExposureMap";
 import { HistoryList, relativeTime } from "./components/HistoryList";
 import { CompareBar } from "./components/CompareBar";
 import { DiffView } from "./components/DiffView";
+import { ScanActions } from "./components/ScanActions";
 import { ThemePicker } from "./components/ThemePicker";
 import { BrandMark, Icon } from "./components/Icon";
 import type {
   CmdAnalysis,
   CmdIssue,
   CmdItem,
+  ExportFormat,
+  ImportReport,
+  Profile,
   ScanDiff,
   ScanProgress,
   ScanResult,
@@ -30,21 +41,54 @@ import type {
 } from "./types";
 import "./App.css";
 
+/** A re-run's result compared with the scan it re-ran. */
+interface Comparison {
+  baseline: StoredScan;
+  diff: ScanDiff;
+}
+
 type View =
   | { kind: "idle" }
-  | { kind: "scanning" }
+  | { kind: "scanning"; runId: string }
   | { kind: "error"; message: string }
-  | { kind: "scan"; result: ScanResult; historical: StoredScan | null }
+  | {
+      kind: "scan";
+      result: ScanResult;
+      /** Its history row (null only if the history refresh failed). */
+      saved: StoredScan | null;
+      /** Opened from history, rather than just run. */
+      historical: boolean;
+      comparison: Comparison | null;
+    }
   | { kind: "diff"; diff: ScanDiff; oldLabel: string; newLabel: string };
 
-/** The scan in flight. Lives outside `View` so it keeps running (and keeps
- *  reporting) while the user browses history or a diff. */
+/** A scan running or waiting to run. Lives outside `View` so it keeps going
+ *  (and reporting) while the user browses history, a diff, or another run. */
 interface ActiveRun {
   runId: string;
   target: string;
   command: string;
-  startedAt: number;
+  /** Re-run of this saved scan: compare the result with it. */
+  baseline: StoredScan | null;
+  /** Null while queued. */
+  startedAt: number | null;
   progress: ScanProgress | null;
+}
+
+/** Scans that may run at once; more are queued. Each is still an explicit
+ *  Run click, and a root scan asks for the password when it starts. */
+const MAX_PARALLEL = 2;
+
+interface Notice {
+  tone: "info" | "error";
+  text: string;
+}
+
+function importNotice(r: ImportReport, noun: string, already: string): Notice {
+  const parts = [`Imported ${r.imported} ${noun}${r.imported === 1 ? "" : "s"}`];
+  if (r.skipped) parts.push(`${r.skipped} ${already}`);
+  const text = [parts.join(" · ") + ".", ...r.errors].join("\n");
+  return { tone: r.errors.length && !r.imported ? "error" : "info", text };
 }
 
 type NmapStatus =
@@ -77,12 +121,19 @@ function App() {
     null,
   );
   const [view, setView] = useState<View>({ kind: "idle" });
-  const [run, setRun] = useState<ActiveRun | null>(null);
+  const [runs, setRuns] = useState<ActiveRun[]>([]);
+  // Runs handed to the backend (the rest of `runs` are queued), and those
+  // the user cancelled.
+  const launched = useRef(new Set<string>());
+  const cancelled = useRef(new Set<string>());
+  const [rerunOf, setRerunOf] = useState<StoredScan | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [nmap, setNmap] = useState<NmapStatus>({ kind: "checking" });
   // Read inside async completions, where the closed-over `view` is stale.
   const viewRef = useRef(view);
   viewRef.current = view;
-  const cancelledRun = useRef<string | null>(null);
   const [history, setHistory] = useState<StoredScan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [resultMode, setResultMode] = useState<"table" | "map">("table");
@@ -98,9 +149,18 @@ function App() {
     }
   }, []);
 
+  const refreshProfiles = useCallback(async () => {
+    try {
+      setProfiles(await listProfiles());
+    } catch {
+      // Non-fatal: leave profiles as-is.
+    }
+  }, []);
+
   useEffect(() => {
     refreshHistory();
-  }, [refreshHistory]);
+    refreshProfiles();
+  }, [refreshHistory, refreshProfiles]);
 
   const elevate = elevateOverride ?? needsRoot(optItems);
   const command = commandText(optItems, target, elevate);
@@ -158,43 +218,160 @@ function App() {
     );
   }, []);
 
-  async function onRun() {
-    const handle = startScan(command, (progress) =>
-      setRun((r) => (r && r.runId === handle.runId ? { ...r, progress } : r)),
-    );
-    setRun({
-      runId: handle.runId,
+  function onRun() {
+    // The same command already running or queued: show it, don't repeat it.
+    const dup = runs.find((r) => r.command === command);
+    if (dup) {
+      setView({ kind: "scanning", runId: dup.runId });
+      return;
+    }
+    const run: ActiveRun = {
+      runId: newRunId(),
       target: target.trim() || "target list",
       command,
-      startedAt: Date.now(),
+      baseline: rerunOf,
+      startedAt: null,
       progress: null,
-    });
-    setView({ kind: "scanning" });
+    };
+    setRuns((rs) => [...rs, run]);
+    setRerunOf(null);
+    setView({ kind: "scanning", runId: run.runId });
+  }
+
+  // Start queued runs while there's a free slot.
+  useEffect(() => {
+    const running = runs.filter((r) => launched.current.has(r.runId)).length;
+    runs
+      .filter((r) => !launched.current.has(r.runId))
+      .slice(0, Math.max(0, MAX_PARALLEL - running))
+      .forEach(launch);
+  }, [runs]);
+
+  // Watching a run that is gone (e.g. removed from the queue): nothing to show.
+  useEffect(() => {
+    if (view.kind === "scanning" && !runs.some((r) => r.runId === view.runId))
+      setView({ kind: "idle" });
+  }, [view, runs]);
+
+  async function launch(run: ActiveRun) {
+    launched.current.add(run.runId);
+    const update = (f: (r: ActiveRun) => ActiveRun) =>
+      setRuns((rs) => rs.map((r) => (r.runId === run.runId ? f(r) : r)));
+    const watching = () => {
+      const v = viewRef.current;
+      return v.kind === "scanning" && v.runId === run.runId;
+    };
+    update((r) => ({ ...r, startedAt: Date.now() }));
     try {
-      const result = await handle.result;
-      const list = await listScans();
-      setHistory(list);
+      const { scanId, result } = await startScan(
+        run.runId,
+        run.command,
+        (progress) => update((r) => ({ ...r, progress })),
+      );
+      const list = await listScans().catch(() => null);
+      if (list) setHistory(list);
+      let comparison: Comparison | null = null;
+      if (run.baseline) {
+        const diff = await diffScans(run.baseline.id, scanId).catch(() => null);
+        if (diff) comparison = { baseline: run.baseline, diff };
+      }
       // Only jump to the result if the user is still watching this scan;
       // otherwise it just appears at the top of the history.
-      if (viewRef.current.kind === "scanning") {
-        setView({ kind: "scan", result, historical: null });
-        setSelectedId(list[0]?.id ?? null); // the scan we just saved
+      if (watching()) {
+        setView({
+          kind: "scan",
+          result,
+          saved: list?.find((s) => s.id === scanId) ?? null,
+          historical: false,
+          comparison,
+        });
+        setSelectedId(scanId);
       }
     } catch (e) {
-      if (cancelledRun.current === handle.runId) {
-        if (viewRef.current.kind === "scanning") setView({ kind: "idle" });
-      } else {
+      if (cancelled.current.has(run.runId)) {
+        if (watching()) setView({ kind: "idle" });
+      } else if (watching()) {
         setView({ kind: "error", message: String(e) });
+      } else {
+        setNotice({ tone: "error", text: `Scan of ${run.target} failed: ${e}` });
       }
     } finally {
-      setRun(null);
+      launched.current.delete(run.runId);
+      cancelled.current.delete(run.runId);
+      setRuns((rs) => rs.filter((r) => r.runId !== run.runId));
     }
   }
 
-  function onCancel() {
-    if (!run) return;
-    cancelledRun.current = run.runId;
-    cancelScan(run.runId);
+  function onCancel(runId: string) {
+    if (!launched.current.has(runId)) {
+      // Still queued: just drop it.
+      setRuns((rs) => rs.filter((r) => r.runId !== runId));
+      return;
+    }
+    cancelled.current.add(runId);
+    cancelScan(runId);
+  }
+
+  /** Load a saved scan's command into the form. It runs only when the user
+   *  presses Run, and the result is then compared with this scan. */
+  function onRerun(scan: StoredScan) {
+    setRerunOf(scan);
+    setView({ kind: "idle" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    onEditCommand(scan.command);
+  }
+
+  async function onExport(scan: StoredScan, format: ExportFormat) {
+    try {
+      const path = await exportScan(scan.id, format);
+      if (path) setNotice({ tone: "info", text: `Exported to ${path}` });
+    } catch (e) {
+      setNotice({ tone: "error", text: `Export failed: ${e}` });
+    }
+  }
+
+  async function onImportScans() {
+    try {
+      const report = await importScans();
+      if (!report) return;
+      await refreshHistory();
+      setNotice(importNotice(report, "scan", "already in history"));
+    } catch (e) {
+      setNotice({ tone: "error", text: `Import failed: ${e}` });
+    }
+  }
+
+  async function onImportZenmap() {
+    try {
+      const report = await importZenmapProfiles();
+      if (!report) return;
+      await refreshProfiles();
+      setNotice(
+        importNotice(report, "profile", "skipped (name already used)"),
+      );
+    } catch (e) {
+      setNotice({ tone: "error", text: `Import failed: ${e}` });
+    }
+  }
+
+  async function onSaveProfile(
+    id: number | null,
+    name: string,
+    description: string,
+  ): Promise<Profile> {
+    const saved = await saveProfile(
+      id,
+      name,
+      description,
+      commandText(optItems, ""),
+    );
+    await refreshProfiles();
+    return saved;
+  }
+
+  async function onDeleteProfile(id: number) {
+    await deleteProfile(id);
+    await refreshProfiles();
   }
 
   async function onSelectHistory(scan: StoredScan) {
@@ -202,7 +379,13 @@ function App() {
     setTarget(scan.target);
     try {
       const result = await getScan(scan.id);
-      setView({ kind: "scan", result, historical: scan });
+      setView({
+        kind: "scan",
+        result,
+        saved: scan,
+        historical: true,
+        comparison: null,
+      });
     } catch (e) {
       setView({ kind: "error", message: String(e) });
     }
@@ -235,13 +418,17 @@ function App() {
 
   function newScan() {
     setElevateOverride(null);
+    setRerunOf(null);
     setSelectedId(null);
     setTarget("");
     setView({ kind: "idle" });
   }
 
-  const scanning = run !== null;
-  const [title, subtitle] = headerText(view, run);
+  const watched =
+    view.kind === "scanning"
+      ? runs.find((r) => r.runId === view.runId)
+      : undefined;
+  const [title, subtitle] = headerText(view, watched);
 
   return (
     <div className="app">
@@ -263,25 +450,48 @@ function App() {
           New scan
         </button>
 
-        {run && view.kind !== "scanning" && (
-          <button
-            type="button"
-            className="sidebar__run"
-            onClick={() => setView({ kind: "scanning" })}
-          >
-            <span className="spinner" aria-hidden="true" />
-            <span className="sidebar__run-target">{run.target}</span>
-            <span className="sidebar__run-pct">
-              {run.progress ? `${Math.floor(run.progress.percent)}%` : "…"}
-            </span>
-          </button>
-        )}
+        {runs
+          .filter((r) => r !== watched)
+          .map((r) => (
+            <button
+              key={r.runId}
+              type="button"
+              className="sidebar__run"
+              onClick={() => setView({ kind: "scanning", runId: r.runId })}
+              title={r.command}
+            >
+              {r.startedAt !== null ? (
+                <span className="spinner" aria-hidden="true" />
+              ) : (
+                <Icon name="clock" size={14} />
+              )}
+              <span className="sidebar__run-target">{r.target}</span>
+              <span className="sidebar__run-pct">
+                {r.startedAt === null
+                  ? "queued"
+                  : r.progress
+                    ? `${Math.floor(r.progress.percent)}%`
+                    : "…"}
+              </span>
+            </button>
+          ))}
 
         <div className="sidebar__heading">
           <span>History</span>
-          {history.length > 0 && (
-            <span className="count">{history.length}</span>
-          )}
+          <span className="sidebar__heading-end">
+            {history.length > 0 && (
+              <span className="count">{history.length}</span>
+            )}
+            <button
+              type="button"
+              className="icon-btn icon-btn--sm"
+              onClick={onImportScans}
+              aria-label="Import nmap XML files"
+              title="Import nmap XML files"
+            >
+              <Icon name="upload" size={14} />
+            </button>
+          </span>
         </div>
         <HistoryList
           scans={history}
@@ -317,14 +527,35 @@ function App() {
           </button>
         </header>
 
-        <div className="main__scroll">
+        <div className="main__scroll" ref={scrollRef}>
           <div className="main__inner">
             {nmap.kind === "missing" && <NmapMissing error={nmap.error} />}
+            {notice && (
+              <div
+                className={`notice notice--${notice.tone}`}
+                role={notice.tone === "error" ? "alert" : "status"}
+              >
+                <Icon
+                  name={notice.tone === "error" ? "alert" : "check"}
+                  size={15}
+                />
+                <span className="notice__text">{notice.text}</span>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--sm"
+                  onClick={() => setNotice(null)}
+                  aria-label="Dismiss"
+                >
+                  <Icon name="x" size={13} />
+                </button>
+              </div>
+            )}
             <ScanForm
               target={target}
               onTargetChange={(t) => {
                 setTarget(t);
                 setSelectedId(null);
+                setRerunOf(null);
               }}
               items={optItems}
               onItemsChange={setOptItems}
@@ -340,7 +571,13 @@ function App() {
                 !checked.issues.some((i) => i.level === "block")
               }
               onRun={onRun}
-              scanning={scanning}
+              queueFull={runs.length >= MAX_PARALLEL}
+              rerunOf={rerunOf}
+              onClearRerun={() => setRerunOf(null)}
+              profiles={profiles}
+              onSaveProfile={onSaveProfile}
+              onDeleteProfile={onDeleteProfile}
+              onImportZenmap={onImportZenmap}
               collapsible={view.kind === "scan" || view.kind === "diff"}
             />
 
@@ -374,8 +611,11 @@ function App() {
                 </div>
               )}
 
-              {view.kind === "scanning" && run && (
-                <ScanningCard run={run} onCancel={onCancel} />
+              {watched && (
+                <ScanningCard
+                  run={watched}
+                  onCancel={() => onCancel(watched.runId)}
+                />
               )}
 
               {view.kind === "error" && (
@@ -394,15 +634,29 @@ function App() {
 
               {view.kind === "scan" && (
                 <>
-                  {view.historical && (
+                  {view.historical && view.saved && (
                     <div className="banner">
                       <Icon name="history" size={15} />
                       Viewing a saved scan from{" "}
-                      {new Date(
-                        view.historical.createdAt * 1000,
-                      ).toLocaleString()}
-                      . Run a new scan to refresh it.
+                      {new Date(view.saved.createdAt * 1000).toLocaleString()}
+                      . Re-run it to see what changed.
                     </div>
+                  )}
+                  {view.comparison && (
+                    <ComparisonBanner
+                      comparison={view.comparison}
+                      onShow={() => {
+                        const c = view.comparison!;
+                        setView({
+                          kind: "diff",
+                          diff: c.diff,
+                          oldLabel: scanLabel(c.baseline),
+                          newLabel: view.saved
+                            ? scanLabel(view.saved)
+                            : "this scan",
+                        });
+                      }}
+                    />
                   )}
                   <ResultStats result={view.result} />
                   <div className="results-toolbar">
@@ -442,6 +696,13 @@ function App() {
                         Map
                       </button>
                     </div>
+                    {view.saved && (
+                      <ScanActions
+                        scan={view.saved}
+                        onRerun={onRerun}
+                        onExport={onExport}
+                      />
+                    )}
                     <code
                       className="results-toolbar__args"
                       title={view.result.args}
@@ -483,20 +744,20 @@ function App() {
 
 function headerText(
   view: View,
-  run: ActiveRun | null,
+  run: ActiveRun | undefined,
 ): [string, string | null] {
   switch (view.kind) {
     case "idle":
       return ["New scan", "Choose a target and profile"];
     case "scanning":
-      return ["Scanning", run?.target ?? null];
+      return [run?.startedAt === null ? "Queued" : "Scanning", run?.target ?? null];
     case "error":
       return ["Scan failed", null];
     case "scan":
-      return view.historical
+      return view.historical && view.saved
         ? [
             "Saved scan",
-            `${view.historical.target} · ${relativeTime(view.historical.createdAt)}`,
+            `${view.saved.target} · ${relativeTime(view.saved.createdAt)}`,
           ]
         : ["Scan results", null];
     case "diff":
@@ -535,6 +796,44 @@ function displayIssues(
   return out;
 }
 
+/** After a re-run: how the result differs from the scan it re-ran. */
+function ComparisonBanner({
+  comparison,
+  onShow,
+}: {
+  comparison: Comparison;
+  onShow: () => void;
+}) {
+  const { baseline, diff } = comparison;
+  const when = relativeTime(baseline.createdAt);
+  if (diff.unchanged)
+    return (
+      <div className="banner">
+        <Icon name="compare" size={15} />
+        No changes since the scan from {when}.
+      </div>
+    );
+  const ports = diff.hosts.reduce((n, h) => n + h.ports.length, 0);
+  const hosts = diff.hosts.length;
+  return (
+    <div className="banner banner--changed">
+      <Icon name="compare" size={15} />
+      <span>
+        Changed since the scan from {when}: {hosts} host
+        {hosts === 1 ? "" : "s"}
+        {ports > 0 && `, ${ports} port change${ports === 1 ? "" : "s"}`}.
+      </span>
+      <button
+        type="button"
+        className="btn btn--secondary btn--sm banner__action"
+        onClick={onShow}
+      >
+        Show changes
+      </button>
+    </div>
+  );
+}
+
 function fmtDuration(secs: number): string {
   if (secs < 60) return `${Math.round(secs)}s`;
   const m = Math.floor(secs / 60);
@@ -557,7 +856,8 @@ function ScanningCard({
     const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
   }, []);
-  const elapsed = (now - run.startedAt) / 1000;
+  const queued = run.startedAt === null;
+  const elapsed = queued ? 0 : (now - run.startedAt!) / 1000;
   const p = run.progress;
 
   return (
@@ -568,7 +868,8 @@ function ScanningCard({
       <div className="scanning__body">
         <div className="scanning__head">
           <div className="empty__title">
-            Scanning <span className="mono">{run.target}</span>
+            {queued ? "Queued" : "Scanning"}{" "}
+            <span className="mono">{run.target}</span>
           </div>
           <button
             type="button"
@@ -576,11 +877,11 @@ function ScanningCard({
             onClick={onCancel}
           >
             <Icon name="x" size={14} />
-            Cancel
+            {queued ? "Remove from queue" : "Cancel"}
           </button>
         </div>
         <code className="scanning__cmd">{run.command}</code>
-        <div
+        {!queued && <div
           className={"progress" + (p ? "" : " progress--indeterminate")}
           role="progressbar"
           aria-label="Scan progress"
@@ -592,10 +893,15 @@ function ScanningCard({
             className="progress__fill"
             style={p ? { width: `${Math.min(p.percent, 100)}%` } : undefined}
           />
-        </div>
+        </div>}
         <div className="scanning__meta">
           <Icon name="clock" size={14} />
-          {p ? (
+          {queued ? (
+            <span>
+              Starts when a running scan finishes (at most {MAX_PARALLEL} run
+              at once).
+            </span>
+          ) : p ? (
             <span>
               {p.task} · {p.percent.toFixed(1)}%
               {p.remainingSecs != null &&
@@ -604,9 +910,11 @@ function ScanningCard({
           ) : (
             <span>Starting…</span>
           )}
-          <span className="scanning__elapsed">
-            {fmtDuration(elapsed)} elapsed
-          </span>
+          {!queued && (
+            <span className="scanning__elapsed">
+              {fmtDuration(elapsed)} elapsed
+            </span>
+          )}
         </div>
       </div>
     </div>
