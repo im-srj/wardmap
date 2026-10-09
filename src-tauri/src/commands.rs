@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::db::{self, Db, StoredScan};
 use crate::diff::{self, ScanDiff};
+use crate::nse::{self, NseScript};
 use crate::scan::{self, ScanResult};
 
 /// Run a scan, persist it, and return the parsed result.
@@ -62,4 +63,10 @@ pub fn diff_scans(old_id: i64, new_id: i64, db: State<Db>) -> Result<ScanDiff, S
     let old = load(old_id)?;
     let new = load(new_id)?;
     Ok(diff::diff_scans(&old, &new))
+}
+
+/// The installed nmap's NSE script catalogue, for the script browser.
+#[tauri::command]
+pub fn list_nse_scripts() -> Result<Vec<NseScript>, String> {
+    nse::list_scripts().map_err(|e| e.to_string())
 }
