@@ -102,6 +102,12 @@ pub struct Service {
     pub product: Option<String>,
     pub version: Option<String>,
     pub extrainfo: Option<String>,
+    /// `"ssl"` when nmap found the service wrapped in TLS (e.g. HTTPS is
+    /// reported as name `http` + tunnel `ssl`).
+    pub tunnel: Option<String>,
+    /// How nmap named it: `"probed"` (-sV fingerprinted it) or `"table"`
+    /// (guessed purely from the port number).
+    pub method: Option<String>,
 }
 
 /// One NSE script's result: its id and nmap's human-readable output.
@@ -324,6 +330,8 @@ fn parse_port(node: Node) -> Result<Port, ParseError> {
                     product: attr(child, "product"),
                     version: attr(child, "version"),
                     extrainfo: attr(child, "extrainfo"),
+                    tunnel: attr(child, "tunnel"),
+                    method: attr(child, "method"),
                 });
             }
             "script" => {
@@ -604,6 +612,26 @@ mod tests {
         // Script output is kept, but no cert is invented from a failed run.
         assert_eq!(h.ports[0].scripts.len(), 1);
         assert!(h.ports[0].cert.is_none());
+    }
+
+    #[test]
+    fn parses_service_tunnel_and_detection_method() {
+        // -sV reports HTTPS as name="http" + tunnel="ssl"; dropping the tunnel
+        // would make an encrypted service look like plaintext HTTP.
+        let xml = r#"<?xml version="1.0"?><nmaprun><host><status state="up"/>
+            <ports>
+              <port protocol="tcp" portid="443"><state state="open"/>
+                <service name="http" product="nginx" tunnel="ssl" method="probed" conf="10"/></port>
+              <port protocol="tcp" portid="3389"><state state="open"/>
+                <service name="ms-wbt-server" method="table" conf="3"/></port>
+            </ports></host></nmaprun>"#;
+        let r = parse_nmap_xml(xml).expect("should parse");
+        let https = r.hosts[0].ports[0].service.as_ref().unwrap();
+        assert_eq!(https.tunnel.as_deref(), Some("ssl"));
+        assert_eq!(https.method.as_deref(), Some("probed"));
+        let guessed = r.hosts[0].ports[1].service.as_ref().unwrap();
+        assert_eq!(guessed.tunnel, None);
+        assert_eq!(guessed.method.as_deref(), Some("table"));
     }
 
     #[test]
