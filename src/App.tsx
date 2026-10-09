@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  analyzeCommand,
   cancelScan,
   diffScans,
   getScan,
@@ -7,7 +8,8 @@ import {
   nmapVersion,
   startScan,
 } from "./api";
-import { PRESETS, buildCommand, buildFlags, type Preset } from "./presets";
+import { PRESETS } from "./presets";
+import { commandText, findOption, quoteArg } from "./options";
 import { useTheme } from "./themes";
 import { ScanForm } from "./components/ScanForm";
 import { ResultStats, ResultsTable } from "./components/ResultsTable";
@@ -18,6 +20,9 @@ import { DiffView } from "./components/DiffView";
 import { ThemePicker } from "./components/ThemePicker";
 import { BrandMark, Icon } from "./components/Icon";
 import type {
+  CmdAnalysis,
+  CmdIssue,
+  CmdItem,
   ScanDiff,
   ScanProgress,
   ScanResult,
@@ -57,8 +62,15 @@ const EXAMPLES = ["localhost", "scanme.nmap.org", "192.168.1.0/24"];
 
 function App() {
   const [target, setTarget] = useState("");
-  const [preset, setPreset] = useState<Preset>(PRESETS[0]);
-  const [scripts, setScripts] = useState<string[]>([]);
+  // The command's options (everything but targets) as canonical items; the
+  // presets, script browser, option builder and command editor all edit this.
+  const [optItems, setOptItems] = useState<CmdItem[]>(PRESETS[0].items);
+  // The backend's analysis of `forCommand` (stale once the command changes).
+  const [analysis, setAnalysis] = useState<{
+    forCommand: string;
+    result: CmdAnalysis;
+  } | null>(null);
+  const analyzeSeq = useRef(0);
   const [view, setView] = useState<View>({ kind: "idle" });
   const [run, setRun] = useState<ActiveRun | null>(null);
   const [nmap, setNmap] = useState<NmapStatus>({ kind: "checking" });
@@ -85,6 +97,49 @@ function App() {
     refreshHistory();
   }, [refreshHistory]);
 
+  const command = commandText(optItems, target);
+
+  // Re-check the command whenever it changes (debounced). The backend is the
+  // authority on what nmap will make of it and what Cartograph won't run.
+  useEffect(() => {
+    const seq = ++analyzeSeq.current;
+    const id = setTimeout(() => {
+      analyzeCommand(command).then((result) => {
+        if (seq === analyzeSeq.current)
+          setAnalysis({ forCommand: command, result });
+      });
+    }, 120);
+    return () => clearTimeout(id);
+  }, [command]);
+
+  /** The command line was edited by hand: adopt the backend's reading of it. */
+  async function onEditCommand(text: string) {
+    const seq = ++analyzeSeq.current;
+    const result = await analyzeCommand(text);
+    if (seq !== analyzeSeq.current) return;
+    // Unbalanced quotes: nothing parsed, so keep the current options rather
+    // than wiping them; just show why.
+    if (result.issues.some((i) => i.message.startsWith("Unbalanced"))) {
+      setAnalysis({ forCommand: text, result });
+      return;
+    }
+    setOptItems(result.items.filter((i) => i.kind !== "target"));
+    setTarget(
+      result.items
+        .filter((i) => i.kind === "target")
+        .map((i) => quoteArg(i.name))
+        .join(" "),
+    );
+    setSelectedId(null);
+  }
+
+  const checked = analysis?.forCommand === command ? analysis.result : null;
+  const issues = displayIssues(
+    analysis?.result.issues ?? [],
+    optItems,
+    target,
+  );
+
   useEffect(() => {
     nmapVersion().then(
       (version) => setNmap({ kind: "ok", version }),
@@ -93,14 +148,13 @@ function App() {
   }, []);
 
   async function onRun() {
-    const flags = buildFlags(preset, scripts);
-    const handle = startScan(target, flags, (progress) =>
+    const handle = startScan(command, (progress) =>
       setRun((r) => (r && r.runId === handle.runId ? { ...r, progress } : r)),
     );
     setRun({
       runId: handle.runId,
-      target,
-      command: buildCommand(flags, target),
+      target: target.trim() || "target list",
+      command,
       startedAt: Date.now(),
       progress: null,
     });
@@ -260,10 +314,15 @@ function App() {
                 setTarget(t);
                 setSelectedId(null);
               }}
-              preset={preset}
-              onPresetChange={setPreset}
-              scripts={scripts}
-              onScriptsChange={setScripts}
+              items={optItems}
+              onItemsChange={setOptItems}
+              command={command}
+              issues={issues}
+              onEditCommand={onEditCommand}
+              canRun={
+                checked !== null &&
+                !checked.issues.some((i) => i.level === "block")
+              }
               onRun={onRun}
               scanning={scanning}
               collapsible={view.kind === "scan" || view.kind === "diff"}
@@ -427,6 +486,36 @@ function headerText(
     case "diff":
       return ["Compare scans", "What changed between two runs"];
   }
+}
+
+/** What to show under the command: the backend's issues (minus "add a
+ *  target" while the target box is simply still empty — the disabled Run
+ *  button says that), plus catalogue-based heads-ups about privileges and
+ *  spoofing. */
+function displayIssues(
+  backend: CmdIssue[],
+  items: CmdItem[],
+  target: string,
+): CmdIssue[] {
+  const out = backend.filter(
+    (i) => !(target.trim() === "" && i.message === "Add at least one target."),
+  );
+  const defs = items.map((i) => findOption(i.name));
+  const root = items.filter((_, k) => defs[k]?.root).map((i) => i.name);
+  if (root.length > 0)
+    out.push({
+      level: "warn",
+      message: `${root.join(", ")} ${root.length === 1 ? "needs" : "need"} root privileges. Cartograph runs nmap unprivileged for now, so unless nmap has raw-socket rights it will refuse ${root.length === 1 ? "it" : "them"}.`,
+    });
+  const spoof = items
+    .filter((_, k) => defs[k]?.risk === "spoofing")
+    .map((i) => i.name);
+  if (spoof.length > 0)
+    out.push({
+      level: "warn",
+      message: `${spoof.join(", ")} ${spoof.length === 1 ? "disguises" : "disguise"} where the scan comes from. Only use this on networks you're authorized to test.`,
+    });
+  return out;
 }
 
 function fmtDuration(secs: number): string {

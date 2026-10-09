@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
+  CmdAnalysis,
   NseScript,
   ScanDiff,
   ScanProgress,
@@ -19,13 +20,14 @@ export interface RunningScan {
 let runSeq = 0;
 
 /**
- * Start an nmap scan via the Rust backend. `flags` are the preset/script flags
- * only; the backend appends its own capture flags (`--stats-every 1s -oX -`).
- * `onProgress` fires roughly once a second while nmap reports progress.
+ * Start an nmap scan via the Rust backend. `command` is the full command as
+ * shown to the user (leading `nmap` optional); the backend re-analyzes it,
+ * refuses blocked commands, and adds its own capture flags
+ * (`--stats-every 1s -oX -`). `onProgress` fires roughly once a second while
+ * nmap reports progress.
  */
 export function startScan(
-  target: string,
-  flags: string[],
+  command: string,
   onProgress: (p: ScanProgress) => void,
 ): RunningScan {
   const runId = `run-${Date.now()}-${++runSeq}`;
@@ -35,11 +37,15 @@ export function startScan(
     runId,
     result: invoke<ScanResult>("run_nmap_scan", {
       runId,
-      target,
-      flags,
+      command,
       onProgress: channel,
     }),
   };
+}
+
+/** Parse a command the way nmap would, plus Cartograph's checks. */
+export async function analyzeCommand(command: string): Promise<CmdAnalysis> {
+  return invoke<CmdAnalysis>("analyze_command", { command });
 }
 
 /** Kill a running scan. Resolves false if it had already finished. */
