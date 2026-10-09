@@ -49,6 +49,26 @@ are the shared state, so treat them as such:
   the last one left off. Keep the Progress Log current at each milestone.
 - Do NOT rely on resuming the same transcript elsewhere; start a fresh
   session and let git + this file carry the context.
+
+**Branches:** `main` is always the latest merged state. Start each milestone
+on a NEW branch off an up-to-date `main`, push it, merge it via a PR, then
+delete the branch:
+```sh
+git checkout main && git pull && git checkout -b m7-packaging
+```
+Never stack a new milestone on an unmerged feature branch (that's how M8–M12
+and the README all ended up on `ui-themes-map-device-id` once and had to be
+split up). Check `git branch --show-current` before the first commit.
+
+**First-time setup on a new machine** (Ubuntu/Debian; see README for others):
+```sh
+sudo apt install nmap libwebkit2gtk-4.1-dev libgtk-3-dev \
+  libayatana-appindicator3-dev librsvg2-dev build-essential
+curl https://sh.rustup.rs -sSf | sh   # distro Rust is too old
+npm install
+cd src-tauri && cargo test            # should be all green, no nmap needed
+npm run tauri dev                     # add WEBKIT_DISABLE_DMABUF_RENDERER=1 on old GPUs
+```
 (This is about the dev workflow. It does not change the "Cloud sync /
 multi-device state" non-goal below, which is about the shipped app.)
 
@@ -425,3 +445,15 @@ Next: M12 — profiles, re-run from history, import/export.
   scans → third shows "queued" in the sidebar; import an `nmap -oX` file.
 Next: M7 — packaging (incl. macOS/Windows elevation from M11).
 
+
+### Repo housekeeping + README (2026-10-09)
+- Added `README.md` (features, requirements, build, usage, architecture,
+  layout, dev commands, roadmap). No LICENSE chosen yet — README says so.
+- Branch cleanup: work from the UI overhaul through M12 had piled onto
+  `ui-themes-map-device-id`. Split into per-milestone branches and merged
+  into `main` in order via PRs #1–#7. **`main` now holds everything up to
+  M12 + README**; the old feature branches are merged and can be deleted.
+- Branch-per-milestone rule added under "Working across machines".
+Next: on any machine, `git checkout main && git pull`, then clear the pending
+GUI checks above (themes, exposure map, device ID, M8–M12), then start M7 —
+packaging — on a fresh `m7-packaging` branch.
