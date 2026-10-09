@@ -103,6 +103,11 @@ multi-device state" non-goal below, which is about the shipped app.)
 - Goal: `brew install <name>` / `winget install <name>` works from a
   clean machine.
 
+### M8+ — Full nmap coverage
+Async engine/progress/cancel → full option catalogue + builder → custom
+command mode → privileged scans → profiles/import/export; M7 moves after
+these. Plan and rationale: `docs/ROADMAP.md`.
+
 ## Non-goals (explicitly out of scope — push back if asked to add these)
 - Reimplementing SYN scanning, OS fingerprinting, or any of Nmap's core
   engine logic.
