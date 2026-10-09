@@ -169,3 +169,23 @@ so parsing code is shared by the app, tests, and the example harness.
   supersedes it). `cargo fmt` + `cargo clippy --all-targets -D warnings` clean.
 Next: M2 — minimal UI (target input, intensity presets, live command preview,
 sortable results table) calling `run_nmap_scan`.
+
+### M2 — Minimal UI DONE (2026-10-09)
+React UI wired to `run_nmap_scan`, verified at runtime in the dev window
+(localhost -sV → 9 open ports with versions, sortable table).
+- `src/types.ts` mirrors the backend's camelCase shape; `src/api.ts` wraps
+  `invoke("run_nmap_scan", { target, flags })` (import from
+  `@tauri-apps/api/core`). Custom commands need NO capabilities/ACL entry in
+  Tauri v2 — confirmed, invoke works without one.
+- `src/presets.ts`: three root-free presets (Quick `-F`, Regular ``,
+  Service+version `-sV`) — no `-sS/-O/-A` since the app runs unprivileged.
+  `buildCommand()` shows the reproducible `nmap <flags> <target>` WITHOUT our
+  internal `-oX -` so the user can paste it into a real terminal.
+- Components: `ScanForm` (input + presets + preview), `CommandPreview`
+  (always-visible live command, copy button — the signature "teaches while
+  doing" feature), `ResultsTable` (flattens hosts→ports, client-side sort by
+  any column, state pills, summary bar). `App` drives idle/scanning/error/done.
+- Dark UI in the icon's slate/cyan palette (`src/App.css`).
+- `npm run build` (tsc strict + vite) clean.
+Next: M3 — SQLite persistence (store every run: target, timestamp, raw XML,
+parsed summary) + a per-target scan-history list.
