@@ -190,7 +190,7 @@ React UI wired to `run_nmap_scan`, verified at runtime in the dev window
 Next: M3 — SQLite persistence (store every run: target, timestamp, raw XML,
 parsed summary) + a per-target scan-history list.
 
-### M3 — SQLite persistence + history DONE (backend verified; GUI check pending)
+### M3 — SQLite persistence + history DONE (GUI confirmed 2026-10-09)
 - Added `rusqlite` (bundled — compiles SQLite from source, no system dep).
 - `src/db.rs`: `Db(Mutex<Connection>)` Tauri state, schema (scans table: raw_xml
   stored verbatim as source of truth + denormalized target/args/created_at/
@@ -210,7 +210,29 @@ parsed summary) + a per-target scan-history list.
   at the storage layer (write → drop connection = close → reopen = restart →
   data present). `insert_list_and_fetch_roundtrip` proves stored XML re-parses
   identically. fmt + clippy clean; frontend tsc+vite clean.
-- PENDING user GUI check: scan appears in sidebar, survives a real app
-  close/reopen, and click-to-load works.
+- GUI confirmed: scans appear in sidebar, survive app close/reopen, and
+  click-to-load works.
 Next: M4 — diff view (pick two scans of the same target → new/closed ports,
 changed service versions).
+
+### M4 — Diff view DONE (backend tested; GUI check pending)
+- `src/diff.rs`: pure `diff_scans(old, new) -> ScanDiff`. Compares hosts by key
+  (IPv4 preferred), surfaces only CHANGES: hosts added/removed, host up/down,
+  ports opened/closed, and service (name/product/version) changes. Unchanged
+  items omitted; `unchanged: true` when nothing differs.
+- `commands::diff_scans(old_id, new_id)` loads both scans from the DB
+  (re-parses stored XML) and diffs them. Registered in the builder.
+- 4 diff unit tests (15 total, all green w/o nmap): identical→unchanged;
+  opened + closed + service-version-change in one host; added/removed hosts;
+  host up→down. fmt + clippy clean (had to add a test type alias + elide a
+  lifetime).
+- Frontend: `CompareBar` (two dropdowns of saved scans, defaults to the two
+  newest, disabled when equal), `DiffView` (per-host cards, +/−/~ signed port
+  rows color-coded by change kind). `App` refactored to a `View` union
+  (idle/scanning/error/scan/diff). tsc+vite clean.
+- DEFERRED: TLS cert diffing. Certs come from nmap NSE `<script>` output, which
+  the parser doesn't read yet — deferred to M6 (NSE support). Noted in diff.rs.
+- PENDING user GUI check: run two scans of one target with a changed open-port
+  set (e.g. start/stop a local service between runs), Compare them, see the
+  diff. This is the M4 acceptance.
+Next: M5 — topology view (interactive host/subnet graph).

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ScanResult, StoredScan } from "./types";
+import type { ScanDiff, ScanResult, StoredScan } from "./types";
 
 /**
  * Run an nmap scan via the Rust backend. `flags` are the preset flags only;
@@ -22,4 +22,12 @@ export async function listScans(): Promise<StoredScan[]> {
 /** Load a saved scan back into a full result (re-parsed from stored XML). */
 export async function getScan(id: number): Promise<ScanResult> {
   return invoke<ScanResult>("get_scan", { id });
+}
+
+/** Diff two saved scans (old baseline vs newer). */
+export async function diffScans(
+  oldId: number,
+  newId: number,
+): Promise<ScanDiff> {
+  return invoke<ScanDiff>("diff_scans", { oldId, newId });
 }
