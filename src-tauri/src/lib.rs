@@ -1,9 +1,27 @@
+pub mod commands;
+pub mod db;
 pub mod scan;
+
+use std::sync::Mutex;
+use tauri::Manager;
 
 /// Builds and runs the Tauri application.
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![scan::run_nmap_scan])
+        .setup(|app| {
+            // Store the database in the OS app-data dir (keyed by the bundle
+            // identifier), so scans persist across restarts.
+            let dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&dir)?;
+            let conn = db::open(dir.join("cartograph.sqlite3"))?;
+            app.manage(db::Db(Mutex::new(conn)));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::run_nmap_scan,
+            commands::list_scans,
+            commands::get_scan,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

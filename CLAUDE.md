@@ -189,3 +189,28 @@ React UI wired to `run_nmap_scan`, verified at runtime in the dev window
 - `npm run build` (tsc strict + vite) clean.
 Next: M3 — SQLite persistence (store every run: target, timestamp, raw XML,
 parsed summary) + a per-target scan-history list.
+
+### M3 — SQLite persistence + history DONE (backend verified; GUI check pending)
+- Added `rusqlite` (bundled — compiles SQLite from source, no system dep).
+- `src/db.rs`: `Db(Mutex<Connection>)` Tauri state, schema (scans table: raw_xml
+  stored verbatim as source of truth + denormalized target/args/created_at/
+  hosts_up/open_ports/elapsed_secs, indexed on target & created_at), and
+  `insert_scan` / `list_scans` / `get_scan_xml`.
+- Refactored `scan.rs`: split out `run_nmap_raw` (returns raw XML) so the
+  command path can persist it; `run_scan` (parse+run) kept for example/tests.
+- `src/commands.rs`: the only Tauri/DB-aware layer — `run_nmap_scan` (now also
+  persists), `list_scans`, `get_scan` (re-parses stored XML). `scan`/`db` stay
+  free of Tauri types.
+- `lib.rs` setup hook opens the DB at `app_data_dir()/cartograph.sqlite3`
+  (under the bundle id) and manages it as state.
+- Frontend: `HistoryList` sidebar (target · open count · time), click a row →
+  `get_scan` loads it into the table with a "viewing a saved scan" banner;
+  history refreshes after each run. Sidebar layout in `App.css`.
+- Tests: 11 green without nmap. `persists_across_reopen` proves the acceptance
+  at the storage layer (write → drop connection = close → reopen = restart →
+  data present). `insert_list_and_fetch_roundtrip` proves stored XML re-parses
+  identically. fmt + clippy clean; frontend tsc+vite clean.
+- PENDING user GUI check: scan appears in sidebar, survives a real app
+  close/reopen, and click-to-load works.
+Next: M4 — diff view (pick two scans of the same target → new/closed ports,
+changed service versions).
