@@ -40,7 +40,7 @@ function toRows(result: ScanResult): Row[] {
   const rows: Row[] = [];
   for (const h of result.hosts) {
     const host = hostLabel(h);
-    const hostname = h.hostnames[0] ?? null;
+    const hostname = h.hostnames[0] ?? h.identity?.mdnsName ?? null;
     for (const p of h.ports) {
       rows.push({
         host,

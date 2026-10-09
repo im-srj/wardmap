@@ -46,6 +46,15 @@ export interface Host {
   hostnames: string[];
   ports: Port[];
   scripts: ScriptOutput[]; // <hostscript> output
+  identity: HostIdentity | null; // gathered after the scan (mDNS / ARP)
+}
+
+/** Mirrors identify::HostIdentity. */
+export interface HostIdentity {
+  mdnsName: string | null;
+  mac: string | null;
+  vendor: string | null;
+  macRandomized: boolean;
 }
 
 export interface RunStats {

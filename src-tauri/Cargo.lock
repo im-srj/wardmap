@@ -293,6 +293,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "simple-dns",
  "tauri",
  "tauri-build",
 ]
@@ -2866,6 +2867,15 @@ name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
+
+[[package]]
+name = "simple-dns"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b6f884fa9a8d48101774bfbd3aeb81e968dd22cffd19a372da69f183db22c1a"
+dependencies = [
+ "bitflags 2.13.2",
+]
 
 [[package]]
 name = "siphasher"
