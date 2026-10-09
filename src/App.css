@@ -218,6 +218,10 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 .btn--ghost {
   background: transparent;
   border-color: var(--border-strong);
@@ -256,6 +260,12 @@ body {
   border-radius: 6px;
   color: var(--text);
   font-size: 0.8rem;
+}
+.compare-bar__select:focus,
+.compare-bar__select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 .compare-bar__arrow {
   color: var(--muted);
