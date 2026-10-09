@@ -1,6 +1,7 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { PRESETS, buildCommand, buildFlags, type Preset } from "../presets";
 import { CommandPreview } from "./CommandPreview";
+import { Icon, type IconName } from "./Icon";
 import { ScriptBrowser } from "./ScriptBrowser";
 
 interface Props {
@@ -12,7 +13,16 @@ interface Props {
   onScriptsChange: (ids: string[]) => void;
   onRun: () => void;
   scanning: boolean;
+  /** Fold the profile/NSE options behind a summary row (used while results
+   *  are on screen). The command preview always stays visible. */
+  collapsible: boolean;
 }
+
+const PRESET_ICONS: Record<string, IconName> = {
+  quick: "zap",
+  regular: "layers",
+  version: "fingerprint",
+};
 
 export function ScanForm({
   target,
@@ -23,7 +33,10 @@ export function ScanForm({
   onScriptsChange,
   onRun,
   scanning,
+  collapsible,
 }: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const showOptions = !collapsible || expanded;
   const command = buildCommand(buildFlags(preset, scripts), target);
 
   function onSubmit(e: FormEvent) {
@@ -32,54 +45,101 @@ export function ScanForm({
   }
 
   return (
-    <form className="scan-form" onSubmit={onSubmit}>
+    <form className="card scan-form" onSubmit={onSubmit}>
       <div className="scan-form__row">
-        <label className="field">
-          <span className="field__label">Target</span>
+        <label className="target-field">
+          <span className="sr-only">Target</span>
+          <Icon name="target" size={18} className="target-field__icon" />
           <input
-            className="field__input"
+            className="target-field__input"
             type="text"
-            placeholder="e.g. scanme.nmap.org, 192.168.1.0/24, localhost"
+            placeholder="Target — e.g. scanme.nmap.org, 192.168.1.0/24, localhost"
             value={target}
             onChange={(e) => onTargetChange(e.target.value)}
             spellCheck={false}
+            autoComplete="off"
             autoFocus
           />
         </label>
         <button
           type="submit"
-          className="btn btn--primary"
+          className="btn btn--primary btn--lg"
           disabled={scanning || !target.trim()}
         >
-          {scanning ? "Scanning…" : "Run scan"}
+          {scanning ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              Scanning…
+            </>
+          ) : (
+            <>
+              <Icon name="play" size={15} />
+              Run scan
+            </>
+          )}
         </button>
       </div>
 
-      <fieldset className="presets">
-        <legend className="presets__legend">Scan intensity</legend>
-        <div className="presets__options">
-          {PRESETS.map((p) => (
-            <label
-              key={p.id}
-              className={
-                "preset" + (p.id === preset.id ? " preset--active" : "")
-              }
-            >
-              <input
-                type="radio"
-                name="preset"
-                value={p.id}
-                checked={p.id === preset.id}
-                onChange={() => onPresetChange(p)}
-              />
-              <span className="preset__label">{p.label}</span>
-              <span className="preset__desc">{p.description}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {collapsible && (
+        <button
+          type="button"
+          className="options-toggle"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+        >
+          <Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} />
+          <span className="options-toggle__label">Scan options</span>
+          {!expanded && (
+            <span className="options-toggle__summary">
+              {preset.label}
+              {scripts.length > 0 &&
+                ` · ${scripts.length} NSE script${scripts.length === 1 ? "" : "s"}`}
+            </span>
+          )}
+        </button>
+      )}
 
-      <ScriptBrowser selected={scripts} onChange={onScriptsChange} />
+      {showOptions && (
+        <fieldset className="presets">
+          <legend className="section-label">Scan profile</legend>
+          <div className="presets__options">
+            {PRESETS.map((p) => (
+              <label
+                key={p.id}
+                className={
+                  "preset" + (p.id === preset.id ? " preset--active" : "")
+                }
+              >
+                <input
+                  type="radio"
+                  name="preset"
+                  value={p.id}
+                  checked={p.id === preset.id}
+                  onChange={() => onPresetChange(p)}
+                />
+                <span className="preset__icon">
+                  <Icon name={PRESET_ICONS[p.id] ?? "layers"} size={16} />
+                </span>
+                <span className="preset__text">
+                  <span className="preset__label">
+                    {p.label}
+                    <code className="preset__flags">
+                      {p.flags.length ? p.flags.join(" ") : "default"}
+                    </code>
+                  </span>
+                  <span className="preset__desc">{p.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <ScriptBrowser
+        selected={scripts}
+        onChange={onScriptsChange}
+        collapsed={!showOptions}
+      />
 
       <CommandPreview command={command} />
     </form>

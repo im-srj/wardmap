@@ -61,7 +61,10 @@ function computeLayout(count: number, iterations = 420): Pos[] {
       pos.push({ x: cx, y: cy });
     } else {
       const a = (2 * Math.PI * (i - 1)) / hosts - Math.PI / 2;
-      pos.push({ x: cx + Math.cos(a) * restLen, y: cy + Math.sin(a) * restLen });
+      pos.push({
+        x: cx + Math.cos(a) * restLen,
+        y: cy + Math.sin(a) * restLen,
+      });
     }
   }
   const vel: Pos[] = pos.map(() => ({ x: 0, y: 0 }));
@@ -198,10 +201,10 @@ export function TopologyView({ result }: { result: ScanResult }) {
     });
   }
 
+  /** One of the theme's six categorical colors (--viz-1..6 in App.css). */
   function subnetColor(subnet: string): string {
-    const palette = ["#38bdf8", "#4ade80", "#fbbf24", "#f472b6", "#a78bfa", "#fb923c"];
-    const idx = subnets.indexOf(subnet);
-    return palette[((idx % palette.length) + palette.length) % palette.length];
+    const idx = Math.max(0, subnets.indexOf(subnet));
+    return `var(--viz-${(idx % 6) + 1})`;
   }
 
   function toggleSubnet(s: string) {
@@ -248,7 +251,7 @@ export function TopologyView({ result }: { result: ScanResult }) {
           <label className="topo__filter">
             <span className="topo__filter-label">Service</span>
             <select
-              className="compare-bar__select topo__service"
+              className="select topo__service"
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
             >
@@ -289,7 +292,12 @@ export function TopologyView({ result }: { result: ScanResult }) {
 
           {/* root (scanner) node */}
           <g>
-            <circle cx={rootPos.x} cy={rootPos.y} r={16} className="topo__root" />
+            <circle
+              cx={rootPos.x}
+              cy={rootPos.y}
+              r={16}
+              className="topo__root"
+            />
             <text x={rootPos.x} y={rootPos.y + 30} className="topo__root-label">
               scan
             </text>
@@ -320,13 +328,15 @@ export function TopologyView({ result }: { result: ScanResult }) {
                   e.currentTarget.setPointerCapture?.(e.pointerId);
                 }}
                 onPointerEnter={() => setHovered(h)}
-                onPointerLeave={() => setHovered((cur) => (cur === h ? null : cur))}
+                onPointerLeave={() =>
+                  setHovered((cur) => (cur === h ? null : cur))
+                }
               >
                 <circle
                   cx={p.x}
                   cy={p.y}
                   r={r}
-                  fill={subnetColor(h.subnet)}
+                  style={{ fill: subnetColor(h.subnet) }}
                   className="topo__host"
                 />
                 <text
