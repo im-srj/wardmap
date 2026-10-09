@@ -99,3 +99,14 @@ diffing/history, topology visualization, NSE script browsing, and UX.
 
 ## Progress Log
 <!-- Append one short entry per milestone completed. Do not rewrite history. -->
+
+### M0 — Scaffold (2026-10-09)
+Hand-authored Tauri v2 + React/TypeScript scaffold committed (not generated
+via `create-tauri-app`, since the authoring environment had no registry
+access — written directly against the known v2 config/Cargo schema).
+**Not yet verified to build** — next step is running `npm install` and
+`npm run tauri dev` on a machine with normal network access and confirming
+the window opens. `bundle.icon` was deliberately left out of
+`tauri.conf.json`; icons need generating (`npm run tauri icon <source>`)
+before `tauri build` works — tracked for M7. CI workflow added but likewise
+unverified until it runs on a push.
