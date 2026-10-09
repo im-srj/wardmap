@@ -38,6 +38,20 @@ diffing/history, topology visualization, NSE script browsing, and UX.
   are the two places silent bugs would be worst (wrong port status, wrong
   diff = wrong security conclusions).
 
+## Working across machines
+This project is developed from more than one machine. There is NO live sync
+of a Claude Code conversation across machines — the git repo and this file
+are the shared state, so treat them as such:
+- **Before switching machines / ending a work session:** commit and push.
+- **When starting on any machine:** `git pull` first.
+- **Context travels via this file**, especially the Progress Log below — a
+  fresh session on any machine reads CLAUDE.md on startup and picks up where
+  the last one left off. Keep the Progress Log current at each milestone.
+- Do NOT rely on resuming the same transcript elsewhere; start a fresh
+  session and let git + this file carry the context.
+(This is about the dev workflow. It does not change the "Cloud sync /
+multi-device state" non-goal below, which is about the shipped app.)
+
 ## Milestones (build in this order; each should be runnable/demoable)
 
 ### M0 — Scaffold
