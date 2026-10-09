@@ -3,6 +3,7 @@ import { diffScans, getScan, listScans, runScan } from "./api";
 import { PRESETS, type Preset } from "./presets";
 import { ScanForm } from "./components/ScanForm";
 import { ResultsTable } from "./components/ResultsTable";
+import { TopologyView } from "./components/TopologyView";
 import { HistoryList } from "./components/HistoryList";
 import { CompareBar } from "./components/CompareBar";
 import { DiffView } from "./components/DiffView";
@@ -26,6 +27,7 @@ function App() {
   const [view, setView] = useState<View>({ kind: "idle" });
   const [history, setHistory] = useState<StoredScan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [resultMode, setResultMode] = useState<"table" | "map">("table");
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -144,7 +146,33 @@ function App() {
                     Viewing a saved scan. Run a new scan to update.
                   </div>
                 )}
-                <ResultsTable result={view.result} />
+                <div className="result-toggle">
+                  <button
+                    type="button"
+                    className={
+                      "toggle-btn" +
+                      (resultMode === "table" ? " toggle-btn--active" : "")
+                    }
+                    onClick={() => setResultMode("table")}
+                  >
+                    Table
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      "toggle-btn" +
+                      (resultMode === "map" ? " toggle-btn--active" : "")
+                    }
+                    onClick={() => setResultMode("map")}
+                  >
+                    Map
+                  </button>
+                </div>
+                {resultMode === "table" ? (
+                  <ResultsTable result={view.result} />
+                ) : (
+                  <TopologyView result={view.result} />
+                )}
               </>
             )}
             {view.kind === "diff" && (

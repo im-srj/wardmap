@@ -575,3 +575,153 @@ body {
   color: var(--filtered);
   background: rgba(251, 191, 36, 0.12);
 }
+
+/* Table / Map toggle ------------------------------------------------------ */
+.result-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 0.8rem;
+  padding: 2px;
+  background: var(--panel-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.toggle-btn {
+  padding: 0.3rem 0.9rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.toggle-btn--active {
+  background: var(--accent-strong);
+  color: #04121f;
+}
+
+/* Topology ---------------------------------------------------------------- */
+.topo__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+.topo__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.topo__filter-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.topo__service {
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+.topo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  background: var(--panel-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+.topo-chip--off {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.topo-chip__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.topo__canvas {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 45%, #0e1a2d, var(--panel-inset));
+  overflow: hidden;
+}
+.topo__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+.topo__edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.topo__root {
+  fill: #0b1220;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.topo__root-label,
+.topo__host-label {
+  fill: var(--muted);
+  font-size: 12px;
+  font-family: var(--mono);
+  text-anchor: middle;
+  pointer-events: none;
+}
+.topo__host-label {
+  fill: var(--text);
+}
+.topo__node {
+  cursor: grab;
+}
+.topo__node:active {
+  cursor: grabbing;
+}
+.topo__host {
+  stroke: #0b1220;
+  stroke-width: 2;
+}
+.topo__node:hover .topo__host {
+  stroke: #fff;
+}
+
+.topo__tooltip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 0.5rem 0.7rem;
+  background: rgba(10, 19, 34, 0.95);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  pointer-events: none;
+  max-width: 260px;
+}
+.topo__tooltip-addr {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.topo__tooltip-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+.topo__tooltip-svc {
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin-top: 0.3rem;
+}
+.topo__hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
