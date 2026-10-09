@@ -63,62 +63,45 @@ What shipped, and where it differs from the original plan:
 - **Reserved for M10's policy layer:** `--stats-every` (we set it), alongside
   the output flags.
 
-## M9 — Full option catalogue + visual builder
+## M9 + M10 — All options + custom command  *(DONE 2026-10-09; built together)*
 
-- Write `shared/nmap-options.json` by hand from the nmap man page (7.94),
-  grouped into nmap's own 11 sections: Target spec · Host discovery · Scan
-  techniques · Port spec & order · Service/version · Script scan · OS
-  detection · Timing & performance · Firewall/IDS evasion & spoofing · Output
-  (mostly reserved, see below) · Misc.
-  Each entry: `flags`, `arg` (`none|int|float|time|ports|hostlist|string|enum|file`),
-  `root: bool`, `exclusiveGroup` (e.g. one TCP scan type), `implies` (e.g.
-  `-A` ⇒ `-sV -O -sC --traceroute`), `risk` (`noisy|intrusive|spoofing`),
-  `summary`, `detail`.
-- Builder UI, replacing the 3-button preset row (presets stay as one-click
-  starting points that fill in the builder):
-  - Collapsible sections in nmap's order, with search across all options
-    ("what is -Pn"). Typed inputs per value kind: port-range editor,
-    T0–T5 slider, time fields with units.
-  - Every option explains itself inline. That is the "teaches while doing"
-    feature applied to every flag.
-  - Conflicts are resolved visibly ("-sT replaced -sS"). Root-only options get
-    a badge and are disabled or warned about, depending on M11 status.
-  - NSE: keep the browser, and add **`--script-args` editor** (key/values,
-    using arg names parsed from NSEDoc `@args`), **category/expression specs**
-    (`--script "vuln and not intrusive"`), and `--script-trace`.
-- Tests: a catalogue schema test (every flag unique, every exclusive group
-  valid), and argv round-trip (builder state → argv → builder state).
+They shared one core, so they landed together. Where it differs from the
+original plan:
 
-## M10 — Custom command mode (type/paste any nmap command)
-
-- An editable command line above the preview. Toggle **Builder ⇄ Command**,
-  with two-way sync:
-  - Typing/pasting → backend `parse_command(text)` → tokens classified using
-    the catalogue into `{options, targets, unknown}` → builder updates.
-  - Unknown/new flags (newer nmap than the catalogue) are kept verbatim as
-    "raw" chips rather than dropped. Power users are never blocked by an
-    outdated catalogue.
-  - Paste-friendly: strips a leading `nmap` / `sudo nmap`. `sudo` sets the
-    "needs elevation" flag (M11).
-- **Policy layer (Rust, `scan_policy.rs`). This is the trust boundary, test
-  it hard:**
-  - *Reserved* (we own them): `-oN -oX -oS -oG -oA`, `--append-output`,
-    `--stylesheet`, `--webxml`, `--no-stylesheet`, `--resume`. Output flags
-    become post-scan exports of the same type instead of errors.
-  - *Refused:* `-iR` (non-goal), `--interactive`.
-  - *File-taking options* (`-iL`, `--excludefile`, `--script-args-file`,
-    `--datadir`, `--servicedb`, `--versiondb`, script paths): allowed, chosen
-    via a native file picker and shown as full paths in the preview.
-  - *Warnings, not blocks:* intrusive/brute/dos/exploit scripts (exists),
-    spoofing (`-S -D --spoof-mac -e`), very aggressive timing on non-local
-    ranges, and huge target expansions (e.g. a /8).
-  - Targets: replace the single `target.starts_with('-')` guard with
-    catalogue-aware classification (anything that's not a known option or its
-    value is a target). Run `nmap -sL -n` as an optional "preview targets"
-    check that lists hosts without sending a packet to them.
-- Tests: a table of 50+ real-world commands (from the nmap book/man page) →
-  expected classification and policy result. Fuzz the tokenizer with odd
-  quoting.
+- **The backend parses commands exactly like nmap.** `src-tauri/src/cmdline.rs`
+  mirrors nmap's `getopt_long_only`, using its `long_options[]` table (101
+  entries) and its short-option string, both transcribed from nmap.cc. That
+  covers abbreviations (`--stats` = `--stats-every`), single-dash long options
+  (`-top 10`), clusters (`-sSV`, `-nF`), attached values (`-p80`, and
+  `-oXfoo` = `-o Xfoo`), and required values taken from the next token even
+  when it starts with `-` (`--script-args -oX`). The tricky cases were
+  checked against real nmap 7.94. Name-matching would have missed reserved
+  options hidden behind abbreviations or old aliases (`-o`, `-m`, `-i`).
+- **Two data sources instead of one shared JSON.** The parser's tables live in
+  Rust; the UI catalogue is `src/nmap-options.json` (100+ options in nmap's
+  section order, with summary, root, risk and exclusive group for each).
+  The Rust test `ui_catalogue_matches_the_parser` checks that every catalogue
+  entry parses back to exactly the tokens the UI builds, so they can't drift.
+- **Trust boundary:** `run_nmap_scan` now takes the command text and
+  re-analyzes it. `runner::run` only accepts an `Analysis` and refuses a
+  blocked one. Blocked: output options in every spelling (we own `-oX -`),
+  `--stats-every`, `--resume`, `-iR` (non-goal), `-iL -` (stdin is the pty),
+  non-scan modes (`-h -V --iflist --script-help --script-updatedb`),
+  ambiguous abbreviations, missing values, unknown letters inside a cluster,
+  typographic dashes, targets starting with `-`, and no target at all.
+  Unknown long options only warn, so a newer nmap's flags still run.
+  A leading `sudo` is stripped with a warning (M11).
+- UI: the options state is one list of canonical items, edited by presets,
+  the script browser, the **All options** panel (search, sections,
+  root/risk badges, exclusive groups, chips for anything set, including
+  uncatalogued options) and the **editable command line** (type or paste
+  any nmap command; issues show underneath; Run is enabled only once the
+  backend has cleared the current command).
+- **Not done (follow-ups):** native file pickers (paths are typed), a
+  `--script-args` editor driven by NSEDoc `@args`, turning output flags into
+  post-scan exports (they're blocked with an explanation for now), a
+  `-sL -n` "preview targets" check, warnings for huge target ranges or
+  aggressive timing, and a dedicated port-range editor or timing slider.
 
 ## M11 — Privileged scans
 
