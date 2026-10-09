@@ -80,7 +80,7 @@ export interface StoredScan {
 export interface PortDiff {
   portid: number;
   protocol: string;
-  kind: string; // "opened" | "closed" | "service-changed"
+  kind: string; // "opened" | "closed" | "service-changed" | "cert-changed" | "cert-new"
   detail: string;
 }
 
