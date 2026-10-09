@@ -6,6 +6,8 @@ export interface Service {
   product: string | null;
   version: string | null;
   extrainfo: string | null;
+  tunnel: string | null; // "ssl" when wrapped in TLS (HTTPS = http + ssl)
+  method: string | null; // "probed" (-sV) or "table" (guessed from port)
 }
 
 export interface ScriptOutput {
@@ -44,6 +46,15 @@ export interface Host {
   hostnames: string[];
   ports: Port[];
   scripts: ScriptOutput[]; // <hostscript> output
+  identity: HostIdentity | null; // gathered after the scan (mDNS / ARP)
+}
+
+/** Mirrors identify::HostIdentity. */
+export interface HostIdentity {
+  mdnsName: string | null;
+  mac: string | null;
+  vendor: string | null;
+  macRandomized: boolean;
 }
 
 export interface RunStats {

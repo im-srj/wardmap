@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
 import { listNseScripts } from "../api";
 import type { NseScript } from "../types";
+import { Icon } from "./Icon";
 
 interface Props {
   selected: string[];
   onChange: (ids: string[]) => void;
+  /** Hide the picker but keep the intrusive-script warning (and this
+   *  component's loaded catalogue) — see ScanForm's collapsible options. */
+  collapsed?: boolean;
 }
 
 /** Categories whose scripts can crash services, lock accounts, or trip IDS —
@@ -18,7 +22,11 @@ function summary(description: string): string {
 
 /** Searchable, categorized picker over the installed nmap's NSE scripts.
  *  The catalogue is loaded from nmap the first time the panel is opened. */
-export function ScriptBrowser({ selected, onChange }: Props) {
+export function ScriptBrowser({
+  selected,
+  onChange,
+  collapsed = false,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [scripts, setScripts] = useState<NseScript[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,55 +83,65 @@ export function ScriptBrowser({ selected, onChange }: Props) {
 
   return (
     <div className="nse">
-      <div className="nse__bar">
-        <button
-          type="button"
-          className={"nse__toggle" + (open ? " nse__toggle--open" : "")}
-          onClick={toggleOpen}
-          aria-expanded={open}
-        >
-          <span className="nse__caret">{open ? "▾" : "▸"}</span>
-          {selected.length > 0 ? "NSE scripts" : "Add NSE scripts"}
-          {selected.length > 0 && (
-            <span className="nse__count">{selected.length} selected</span>
-          )}
-          <span className="nse__hint">titles, certs, vuln checks…</span>
-        </button>
-        {selected.map((id) => (
-          <span key={id} className="nse-chip">
-            <span className="mono">{id}</span>
-            <button
-              type="button"
-              className="nse-chip__remove"
-              onClick={() => toggle(id)}
-              aria-label={`Remove ${id}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        {selected.length > 1 && (
+      {!collapsed && (
+        <div className="nse__bar">
           <button
             type="button"
-            className="nse__clear"
-            onClick={() => onChange([])}
+            className={"nse__toggle" + (open ? " nse__toggle--open" : "")}
+            onClick={toggleOpen}
+            aria-expanded={open}
           >
-            clear
+            <Icon
+              name={open ? "chevronDown" : "chevronRight"}
+              size={14}
+              className="nse__caret"
+            />
+            <Icon name="code" size={15} />
+            {selected.length > 0 ? "NSE scripts" : "Add NSE scripts"}
+            {selected.length > 0 && (
+              <span className="nse__count">{selected.length} selected</span>
+            )}
+            <span className="nse__hint">titles, certs, vuln checks…</span>
           </button>
-        )}
-      </div>
-
-      {risky.length > 0 && (
-        <div className="nse__warn" role="note">
-          <strong>{risky.join(", ")}</strong>{" "}
-          {risky.length === 1 ? "is" : "are"} intrusive (brute force, DoS or
-          exploit): {risky.length === 1 ? "it" : "they"} can crash services,
-          lock accounts or trigger alerts. Only run against targets you own or
-          are authorized to test.
+          {selected.map((id) => (
+            <span key={id} className="nse-chip">
+              <span className="mono">{id}</span>
+              <button
+                type="button"
+                className="nse-chip__remove"
+                onClick={() => toggle(id)}
+                aria-label={`Remove ${id}`}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          ))}
+          {selected.length > 1 && (
+            <button
+              type="button"
+              className="nse__clear"
+              onClick={() => onChange([])}
+            >
+              clear
+            </button>
+          )}
         </div>
       )}
 
-      {open && (
+      {risky.length > 0 && (
+        <div className="nse__warn" role="note">
+          <Icon name="alert" size={16} />
+          <span>
+            <strong>{risky.join(", ")}</strong>{" "}
+            {risky.length === 1 ? "is" : "are"} intrusive (brute force, DoS or
+            exploit): {risky.length === 1 ? "it" : "they"} can crash services,
+            lock accounts or trigger alerts. Only run against targets you own or
+            are authorized to test.
+          </span>
+        </div>
+      )}
+
+      {open && !collapsed && (
         <div className="nse__panel">
           {error && (
             <div className="error-banner" role="alert">
@@ -135,14 +153,17 @@ export function ScriptBrowser({ selected, onChange }: Props) {
           )}
           {scripts && (
             <>
-              <input
-                className="field__input nse__search"
-                type="search"
-                placeholder={`Search ${scripts.length} scripts by name or description…`}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                spellCheck={false}
-              />
+              <label className="inline-search nse__search">
+                <Icon name="search" size={14} />
+                <input
+                  type="search"
+                  placeholder={`Search ${scripts.length} scripts by name or description…`}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  spellCheck={false}
+                  aria-label="Search NSE scripts"
+                />
+              </label>
               <div className="nse__cats" role="group" aria-label="Category">
                 <button
                   type="button"
@@ -197,7 +218,8 @@ export function ScriptBrowser({ selected, onChange }: Props) {
                             <span
                               key={c}
                               className={
-                                "nse-tag" + (RISKY.has(c) ? " nse-tag--risky" : "")
+                                "nse-tag" +
+                                (RISKY.has(c) ? " nse-tag--risky" : "")
                               }
                             >
                               {c}
