@@ -1,4 +1,9 @@
 :root {
+  /* Render native form controls (the <select> box and its option popup) in
+     dark mode. Without this, WebKitGTK paints them with the light system
+     theme — white box, and our light text becomes invisible on it. */
+  color-scheme: dark;
+
   --bg: #0b1220;
   --panel: #111c30;
   --panel-inset: #0a1322;
