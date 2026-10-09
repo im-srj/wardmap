@@ -387,3 +387,20 @@ Next: M9 — option catalogue (`shared/nmap-options.json`) + visual builder.
   options follow and a red "output file" issue disables Run; remove `-oX
   out.xml` → Run enables.
 Next: M11 — privileged scans (pkexec/osascript/UAC per scan), then M12.
+
+### M11 — Root scans, password every time DONE on Linux (backend tested; GUI check pending)
+- User decision: per-scan password prompt (no setcap). `sudo` prefix in the
+  command = run as root; "Run as root" checkbox toggles it (auto-ticks for
+  root-only options, explicit choice wins).
+- `runner.rs`: `pkexec --disable-internal-agent /usr/bin/nmap …` (desktop polkit
+  dialog; 126 → "authentication cancelled", 127 → not authorized). Cancel
+  writes Ctrl-C to nmap's pty (kernel SIGINT works on a root process we can't
+  `kill`); verified live that ^C alone stops nmap.
+- macOS/Windows elevation NOT implemented — `sudo` is blocked there with a
+  message; deferred to M7 where it can be tested.
+- 63 tests green + 3 live (`cargo test --lib runner -- --ignored`); fmt +
+  clippy clean; tsc+vite clean.
+- GUI check: tick -sS (or -O) → "Run as root" ticks and the command shows
+  `sudo nmap …` → Run → password dialog → results. Also try Cancel on the
+  dialog ("authentication cancelled") and Cancel mid-scan (stops the root nmap).
+Next: M12 — profiles, re-run from history, import/export.
