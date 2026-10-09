@@ -124,3 +124,17 @@ the window opens. `bundle.icon` was deliberately left out of
 `tauri.conf.json`; icons need generating (`npm run tauri icon <source>`)
 before `tauri build` works — tracked for M7. CI workflow added but likewise
 unverified until it runs on a push.
+
+### M0 — Verified building (2026-10-09)
+M0 now compiles cleanly on Linux (Ubuntu 24.04). Frontend builds (tsc +
+vite). Rust/Tauri builds (`cargo build` green, tauri 2.12.2, Rust 1.99 via
+rustup). Env prep needed on this machine: apt Tauri libs
+(libwebkit2gtk-4.1-dev et al.) + rustup (system Rust 1.75 was too old).
+**Correction to the note above:** `tauri::generate_context!()` embeds the
+app icon at COMPILE time, so icons are required even for `dev`, not just
+`tauri build`. Generated a placeholder icon set via `tauri icon app-icon.png`
+(source `app-icon.png` kept in repo root for regeneration; real icon design
+still deferred to M7) and wired `bundle.icon` into `tauri.conf.json`. Mobile
+(android/ios) icon dirs removed — desktop-only project. `gen/schemas` is
+gitignored. Still to confirm: `npm run tauri dev` opening an actual window
+(compile is proven; window launch is the user's visual check).
