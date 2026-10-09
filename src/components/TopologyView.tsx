@@ -2,12 +2,20 @@ import { useMemo, useRef, useState } from "react";
 import type { Host, ScanResult } from "../types";
 
 // SVG coordinate space; the <svg> scales responsively to its container.
-const W = 820;
-const H = 480;
+const W = 860;
+const H = 600;
+
+/** Short node label: the last octet for IPv4 (hosts in one /24 share the
+ *  rest), else the full address. Full address is shown in the tooltip. */
+function shortLabel(addr: string): string {
+  const m = addr.match(/^\d+\.\d+\.\d+\.(\d+)$/);
+  return m ? m[1] : addr;
+}
 
 interface HostInfo {
   id: string;
   addr: string;
+  hostname: string | null;
   subnet: string;
   openPorts: number;
   services: string[];
@@ -40,25 +48,27 @@ function hostServices(h: Host): string[] {
 
 /** A simple force-directed layout, run to a settled state synchronously.
  *  Node 0 is the scanner root (pinned at center); the rest are hosts. */
-function computeLayout(count: number, iterations = 320): Pos[] {
+function computeLayout(count: number, iterations = 420): Pos[] {
   const cx = W / 2;
   const cy = H / 2;
+  const hosts = Math.max(1, count - 1);
+  // Ring radius scales with host count so nodes (and their labels) don't crowd.
+  const restLen = Math.min(250, 120 + hosts * 6);
   // Deterministic initial ring so the layout is stable across renders.
   const pos: Pos[] = [];
   for (let i = 0; i < count; i++) {
     if (i === 0) {
       pos.push({ x: cx, y: cy });
     } else {
-      const a = (2 * Math.PI * (i - 1)) / Math.max(1, count - 1);
-      pos.push({ x: cx + Math.cos(a) * 160, y: cy + Math.sin(a) * 140 });
+      const a = (2 * Math.PI * (i - 1)) / hosts - Math.PI / 2;
+      pos.push({ x: cx + Math.cos(a) * restLen, y: cy + Math.sin(a) * restLen });
     }
   }
   const vel: Pos[] = pos.map(() => ({ x: 0, y: 0 }));
 
-  const repulsion = 9000;
+  const repulsion = 13000;
   const spring = 0.02;
-  const restLen = 150;
-  const gravity = 0.015;
+  const gravity = 0.012;
 
   for (let it = 0; it < iterations; it++) {
     const cooling = 0.85 * (1 - it / iterations) + 0.1;
@@ -120,6 +130,7 @@ export function TopologyView({ result }: { result: ScanResult }) {
           return {
             id: addr,
             addr,
+            hostname: h.hostnames[0] ?? null,
             subnet: subnetOf(addr),
             openPorts: h.ports.filter((p) => p.state === "open").length,
             services: hostServices(h),
@@ -289,6 +300,17 @@ export function TopologyView({ result }: { result: ScanResult }) {
             const p = positions[i + 1];
             if (!p) return null;
             const r = 9 + Math.min(10, h.openPorts);
+            // Place the label radially outward from the root so labels fan out
+            // around the ring instead of stacking on top of each other.
+            const ang = Math.atan2(p.y - rootPos.y, p.x - rootPos.x);
+            const lx = p.x + Math.cos(ang) * (r + 11);
+            const ly = p.y + Math.sin(ang) * (r + 11);
+            const anchor =
+              Math.cos(ang) > 0.25
+                ? "start"
+                : Math.cos(ang) < -0.25
+                  ? "end"
+                  : "middle";
             return (
               <g
                 key={h.id}
@@ -307,8 +329,14 @@ export function TopologyView({ result }: { result: ScanResult }) {
                   fill={subnetColor(h.subnet)}
                   className="topo__host"
                 />
-                <text x={p.x} y={p.y - r - 5} className="topo__host-label">
-                  {h.addr}
+                <text
+                  x={lx}
+                  y={ly}
+                  textAnchor={anchor}
+                  dominantBaseline="middle"
+                  className="topo__host-label"
+                >
+                  {shortLabel(h.addr)}
                 </text>
               </g>
             );
@@ -318,6 +346,9 @@ export function TopologyView({ result }: { result: ScanResult }) {
         {hovered && (
           <div className="topo__tooltip">
             <div className="topo__tooltip-addr mono">{hovered.addr}</div>
+            {hovered.hostname && (
+              <div className="topo__tooltip-host">{hovered.hostname}</div>
+            )}
             <div className="topo__tooltip-meta">
               {hovered.subnet} · {hovered.openPorts} open
             </div>
