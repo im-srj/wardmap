@@ -317,15 +317,47 @@ function HostDetail({
       </div>
 
       <dl className="xdetail__addrs">
-        {h.host.addresses.map((a) => (
-          <div key={a.addr}>
-            <dt>{a.addrType === "mac" ? "MAC" : a.addrType.toUpperCase()}</dt>
-            <dd>
-              <span className="mono">{a.addr}</span>
-              {a.vendor && <span className="muted"> · {a.vendor}</span>}
-            </dd>
+        {h.host.addresses
+          .filter((a) => a.addrType !== "mac")
+          .map((a) => (
+            <div key={a.addr}>
+              <dt>{a.addrType.toUpperCase()}</dt>
+              <dd className="mono">{a.addr}</dd>
+            </div>
+          ))}
+        {h.host.hostnames.map((n) => (
+          <div key={n}>
+            <dt title="Reverse DNS (from nmap)">DNS</dt>
+            <dd className="mono">{n}</dd>
           </div>
         ))}
+        {h.mdnsName && (
+          <div>
+            <dt title="Multicast DNS / Bonjour / Avahi name">mDNS</dt>
+            <dd className="mono">{h.mdnsName}</dd>
+          </div>
+        )}
+        {h.mac && (
+          <div>
+            <dt>MAC</dt>
+            <dd>
+              <span className="mono">{h.mac}</span>
+              {h.macSource === "arp" && (
+                <span
+                  className="tag"
+                  title="Read from this computer's ARP cache — nmap only reports MACs when run as root"
+                >
+                  ARP cache
+                </span>
+              )}
+              <div className="xdetail__vendor">
+                {h.macRandomized
+                  ? "Private (randomized) address — phones and laptops use these for Wi-Fi privacy, so the maker can't be looked up."
+                  : (h.vendor ?? "Vendor not in nmap's database")}
+              </div>
+            </dd>
+          </div>
+        )}
       </dl>
 
       {byCategory.length === 0 && (

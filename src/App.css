@@ -2253,6 +2253,13 @@ select {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.xdetail__addrs .tag {
+  margin-left: 0.4rem;
+}
+.xdetail__vendor {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
 .xdetail__role {
   font-weight: 400;
   color: var(--text-muted);

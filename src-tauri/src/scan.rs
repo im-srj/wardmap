@@ -10,6 +10,8 @@
 use serde::Serialize;
 use std::process::Command;
 
+use crate::identify::HostIdentity;
+
 // ---------------------------------------------------------------------------
 // Data model
 // ---------------------------------------------------------------------------
@@ -63,6 +65,9 @@ pub struct Host {
     pub ports: Vec<Port>,
     /// Host-level NSE output (`<hostscript>`), e.g. smb-os-discovery.
     pub scripts: Vec<ScriptOutput>,
+    /// Extra identity (mDNS name, ARP-cache MAC/vendor) gathered after the
+    /// scan — NOT from nmap's XML, so the parser always leaves it `None`.
+    pub identity: Option<HostIdentity>,
 }
 
 /// One address of a host.
@@ -302,6 +307,7 @@ fn parse_host(node: Node) -> Result<Host, ParseError> {
         hostnames,
         ports,
         scripts,
+        identity: None,
     })
 }
 

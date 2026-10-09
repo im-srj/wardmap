@@ -316,3 +316,22 @@ Replaced by `components/ExposureMap.tsx` + `src/exposure.ts`:
   so port-table guesses are shown as unconfirmed. Test added (27 green).
 Possible follow-up: "changes since last scan" overlay on the map (ties to M4).
 
+### Device identification (2026-10-09; GUI check pending)
+Unprivileged nmap reports no MACs and its rDNS rarely names LAN devices, so
+hosts were hard to tell apart. New `src-tauri/src/identify.rs` runs after every
+scan (approved design: built-in, automatic, LAN-only):
+- MAC from the OS ARP cache (`/proc/net/arp`; `arp -an`/`arp -a` elsewhere) +
+  vendor from nmap's own `nmap-mac-prefixes` (longest-prefix; located via
+  NMAPDIR / PATH / common dirs). Randomized (locally-administered) MACs flagged.
+- mDNS reverse lookup = what `avahi-resolve-address` does: one-shot PTR query
+  (multicast 224.0.0.251 + direct unicast to host:5353), ~1.5s, `simple-dns`
+  crate for packets. Live-verified on the dev LAN: 24/24 names identical to avahi.
+- Only up hosts in private/link-local IPv4 ranges; capped at 1024. Stored in a
+  new `host_identity` table keyed by scan id (raw XML stays the source of
+  truth); `Host.identity` is attached on run and on `get_scan`.
+- Frontend `src/device.ts`: guess = what it IS (name patterns incl. Windows
+  `DESKTOP-XXXXXXX` and Linux `<user>-<motherboard>` defaults, MAC vendor,
+  randomized MAC) + what it DOES (role from services). Map detail shows
+  DNS/mDNS names, MAC (tagged "ARP cache") and vendor. Table hostname falls
+  back to the mDNS name. `examples/identify_demo.rs` = live debug harness.
+- 37 Rust tests green (9 identify + 1 DB roundtrip new); fmt + clippy clean.

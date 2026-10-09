@@ -510,8 +510,14 @@ export function describeService(port: Port): ServiceInfo {
 export interface HostExposure {
   host: Host;
   addr: string;
+  /** Best display name: nmap's reverse DNS, else the mDNS name. */
   name: string | null;
+  mdnsName: string | null;
+  mac: string | null;
+  /** Where the MAC came from: nmap itself (root scans) or the OS ARP cache. */
+  macSource: "nmap" | "arp" | null;
   vendor: string | null;
+  macRandomized: boolean;
   subnet: string;
   services: ServiceInfo[]; // open ports only
   hiddenPorts: number; // closed / filtered, not shown on the map
@@ -539,26 +545,30 @@ export function hostExposure(h: Host): HostExposure {
   const addr =
     (v4 ?? h.addresses.find((a) => a.addrType !== "mac") ?? h.addresses[0])
       ?.addr ?? "(unknown)";
-  const vendor = h.addresses.find((a) => a.vendor)?.vendor ?? null;
+  const nmapMac = h.addresses.find((a) => a.addrType === "mac");
+  const id = h.identity;
+  const mac = nmapMac?.addr ?? id?.mac ?? null;
+  const vendor = nmapMac?.vendor ?? id?.vendor ?? null;
+  const macRandomized = id?.macRandomized ?? false;
+  const mdnsName = id?.mdnsName ?? null;
   const services = h.ports
     .filter((p) => p.state === "open")
     .sort((a, b) => a.portid - b.portid)
     .map(describeService);
+  const names = [...h.hostnames, ...(mdnsName ? [mdnsName] : [])];
   return {
     host: h,
     addr,
-    name: h.hostnames[0] ?? null,
+    name: names[0] ?? null,
+    mdnsName,
+    mac,
+    macSource: nmapMac ? "nmap" : id?.mac ? "arp" : null,
     vendor,
+    macRandomized,
     subnet: subnetOf(addr),
     services,
     hiddenPorts: h.ports.length - services.length,
-    device: guessDevice({
-      addr,
-      names: h.hostnames,
-      vendor,
-      macRandomized: false,
-      services,
-    }),
+    device: guessDevice({ addr, names, vendor, macRandomized, services }),
     reviewCount: services.filter((s) => s.review).length,
     cleartextCount: services.filter((s) => s.cleartext).length,
   };
