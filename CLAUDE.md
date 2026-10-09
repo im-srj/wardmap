@@ -232,7 +232,28 @@ changed service versions).
   (idle/scanning/error/scan/diff). tsc+vite clean.
 - DEFERRED: TLS cert diffing. Certs come from nmap NSE `<script>` output, which
   the parser doesn't read yet — deferred to M6 (NSE support). Noted in diff.rs.
-- PENDING user GUI check: run two scans of one target with a changed open-port
-  set (e.g. start/stop a local service between runs), Compare them, see the
-  diff. This is the M4 acceptance.
+- GUI confirmed: Compare renders the diff (opened port detected between two
+  localhost scans). Two post-M4 CSS fixes also landed: focus-ring on selects/
+  buttons, and `color-scheme: dark` so WebKitGTK stops painting native
+  <select> controls white (light text was invisible on them).
 Next: M5 — topology view (interactive host/subnet graph).
+
+### M5 — Topology view DONE (frontend-only; GUI check pending)
+- `src/components/TopologyView.tsx`: hand-rolled force-directed graph (no dep,
+  per conventions). A pinned central "scan" root node with an edge to each
+  up-host node; `computeLayout` runs ~320 iterations of repulsion + spring +
+  center-gravity with cooling to a settled, deterministic layout. Nodes are
+  draggable (pointer capture), hover shows a tooltip (addr · subnet · open
+  count · services), size scales with open-port count, color by /24 subnet.
+- Filters (the M5 "filterable by subnet/service"): subnet chips toggle each
+  /24's visibility; a service `<select>` filters to hosts exposing it. Layout
+  reflows when the visible node count changes.
+- `App`: Table/Map toggle on scan results (`resultMode` state); both render
+  from the same `ScanResult`, so no backend change was needed.
+- tsc+vite clean. No Rust touched, so the 15 backend tests are unaffected.
+- PENDING user GUI check: best seen with a MULTI-host scan — e.g. Quick scan
+  of your own LAN `192.168.1.0/24` — then Map toggle shows the graph; localhost
+  alone is just root→one node.
+Next: M6 — NSE script browser (searchable/categorized picker; selecting
+scripts updates the live command preview; also unlocks cert data for M4's
+deferred cert diffing).
