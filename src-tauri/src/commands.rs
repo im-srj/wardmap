@@ -1,37 +1,65 @@
 //! Tauri commands exposed to the frontend. These are the only DB-aware layer;
 //! `scan` and `db` stay free of Tauri types.
 
-use tauri::State;
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, State};
 
 use crate::db::{self, Db, StoredScan};
 use crate::diff::{self, ScanDiff};
 use crate::identify;
 use crate::nse::{self, NseScript};
+use crate::runner::{self, Runs, ScanProgress};
 use crate::scan::{self, ScanResult};
 
-/// Run a scan, persist it, and return the parsed result.
+/// Run a scan, streaming progress over `on_progress`, then persist it and
+/// return the parsed result. Async + `spawn_blocking` so a long scan never
+/// ties up the main thread; `run_id` (chosen by the frontend) is what
+/// `cancel_scan` takes. A cancelled scan rejects with "scan cancelled" and
+/// is not saved.
 #[tauri::command]
-pub fn run_nmap_scan(
+pub async fn run_nmap_scan(
+    run_id: String,
     target: String,
     flags: Vec<String>,
-    db: State<Db>,
+    on_progress: Channel<ScanProgress>,
+    app: AppHandle,
 ) -> Result<ScanResult, String> {
-    // Capture the raw XML so we can both parse it now and store it verbatim.
-    let xml = scan::run_nmap_raw(&target, &flags).map_err(|e| e.to_string())?;
-    let mut result = scan::parse_nmap_xml(&xml).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Capture the raw XML so we can both parse it now and store it verbatim.
+        let xml = runner::run(&app.state::<Runs>(), &run_id, &target, &flags, |p| {
+            let _ = on_progress.send(p);
+        })
+        .map_err(|e| e.to_string())?;
+        let mut result = scan::parse_nmap_xml(&xml).map_err(|e| e.to_string())?;
 
-    // Name/MAC identification for LAN hosts the scan found up (~1.5s of mDNS
-    // listening when there are any). Done before taking the DB lock.
-    let ids = identify::identify(&identify::up_ipv4s(&result));
-    identify::attach(&mut result, &ids);
+        // Name/MAC identification for LAN hosts the scan found up (~1.5s of
+        // mDNS listening when there are any). Done before taking the DB lock.
+        let ids = identify::identify(&identify::up_ipv4s(&result));
+        identify::attach(&mut result, &ids);
 
-    let conn =
-        db.0.lock()
-            .map_err(|_| "database lock poisoned".to_string())?;
-    let scan_id = db::insert_scan(&conn, &target, &result, &xml).map_err(|e| e.to_string())?;
-    db::insert_identities(&conn, scan_id, &ids).map_err(|e| e.to_string())?;
+        let db = app.state::<Db>();
+        let conn =
+            db.0.lock()
+                .map_err(|_| "database lock poisoned".to_string())?;
+        let scan_id = db::insert_scan(&conn, &target, &result, &xml).map_err(|e| e.to_string())?;
+        db::insert_identities(&conn, scan_id, &ids).map_err(|e| e.to_string())?;
 
-    Ok(result)
+        Ok(result)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Cancel a running scan. False if it already finished.
+#[tauri::command]
+pub fn cancel_scan(run_id: String, runs: State<Runs>) -> bool {
+    runs.cancel(&run_id)
+}
+
+/// Startup preflight: the installed nmap's version, or why it can't run.
+#[tauri::command]
+pub fn nmap_version() -> Result<String, String> {
+    scan::nmap_version().map_err(|e| e.to_string())
 }
 
 /// List saved scans, newest first, for the history panel.

@@ -103,6 +103,11 @@ multi-device state" non-goal below, which is about the shipped app.)
 - Goal: `brew install <name>` / `winget install <name>` works from a
   clean machine.
 
+### M8+ — Full nmap coverage
+Async engine/progress/cancel → full option catalogue + builder → custom
+command mode → privileged scans → profiles/import/export; M7 moves after
+these. Plan and rationale: `docs/ROADMAP.md`.
+
 ## Non-goals (explicitly out of scope — push back if asked to add these)
 - Reimplementing SYN scanning, OS fingerprinting, or any of Nmap's core
   engine logic.
@@ -335,3 +340,23 @@ scan (approved design: built-in, automatic, LAN-only):
   DNS/mDNS names, MAC (tagged "ARP cache") and vendor. Table hostname falls
   back to the mDNS name. `examples/identify_demo.rs` = live debug harness.
 - 37 Rust tests green (9 identify + 1 DB roundtrip new); fmt + clippy clean.
+
+### M8 — Async scan engine: progress + cancel DONE (backend live-tested; GUI check pending)
+- `src-tauri/src/runner.rs`: `run_nmap_scan` is now async (`spawn_blocking`),
+  streams `ScanProgress {task, percent, remainingSecs}` over a Tauri `Channel`;
+  `cancel_scan(run_id)` kills nmap (cancelled scans aren't saved); all running
+  nmaps are killed on app exit. `nmap_version` preflight command.
+- **Gotcha worth remembering:** nmap's `--stats-every` does NOTHING without a
+  controlling terminal (piped = zero `<taskprogress>`). On Unix we give nmap a
+  pty as stdin/ctty (`openpty`+`setsid`+`TIOCSCTTY`); stdout stays the XML
+  pipe. Windows progress unverified (→ M7).
+- Frontend: run state lives outside the view (scan continues while browsing
+  history; sidebar row returns to it), progress bar with phase/ETA, Cancel,
+  "nmap isn't installed" card, nmap version in the sidebar footer.
+- 45 tests green w/o nmap + 2 `#[ignore]` live tests (`cargo test --lib runner
+  -- --ignored`: real progress through the pty; cancel stops nmap) — both pass.
+  fmt + clippy clean; tsc+vite clean.
+- GUI check: run a slow scan (e.g. `localhost` with Service+version, or a /24)
+  → bar fills with phase names; click History mid-scan → sidebar shows the
+  running row; Cancel returns to idle and nothing is saved.
+Next: M9 — option catalogue (`shared/nmap-options.json`) + visual builder.

@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import { diffScans, getScan, listScans, runScan } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  cancelScan,
+  diffScans,
+  getScan,
+  listScans,
+  nmapVersion,
+  startScan,
+} from "./api";
 import { PRESETS, buildCommand, buildFlags, type Preset } from "./presets";
 import { useTheme } from "./themes";
 import { ScanForm } from "./components/ScanForm";
@@ -10,15 +17,35 @@ import { CompareBar } from "./components/CompareBar";
 import { DiffView } from "./components/DiffView";
 import { ThemePicker } from "./components/ThemePicker";
 import { BrandMark, Icon } from "./components/Icon";
-import type { ScanDiff, ScanResult, StoredScan } from "./types";
+import type {
+  ScanDiff,
+  ScanProgress,
+  ScanResult,
+  StoredScan,
+} from "./types";
 import "./App.css";
 
 type View =
   | { kind: "idle" }
-  | { kind: "scanning"; target: string; command: string }
+  | { kind: "scanning" }
   | { kind: "error"; message: string }
   | { kind: "scan"; result: ScanResult; historical: StoredScan | null }
   | { kind: "diff"; diff: ScanDiff; oldLabel: string; newLabel: string };
+
+/** The scan in flight. Lives outside `View` so it keeps running (and keeps
+ *  reporting) while the user browses history or a diff. */
+interface ActiveRun {
+  runId: string;
+  target: string;
+  command: string;
+  startedAt: number;
+  progress: ScanProgress | null;
+}
+
+type NmapStatus =
+  | { kind: "checking" }
+  | { kind: "ok"; version: string }
+  | { kind: "missing"; error: string };
 
 function scanLabel(s: StoredScan): string {
   return `${s.target} · ${new Date(s.createdAt * 1000).toLocaleString()}`;
@@ -33,6 +60,12 @@ function App() {
   const [preset, setPreset] = useState<Preset>(PRESETS[0]);
   const [scripts, setScripts] = useState<string[]>([]);
   const [view, setView] = useState<View>({ kind: "idle" });
+  const [run, setRun] = useState<ActiveRun | null>(null);
+  const [nmap, setNmap] = useState<NmapStatus>({ kind: "checking" });
+  // Read inside async completions, where the closed-over `view` is stale.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const cancelledRun = useRef<string | null>(null);
   const [history, setHistory] = useState<StoredScan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [resultMode, setResultMode] = useState<"table" | "map">("table");
@@ -52,18 +85,51 @@ function App() {
     refreshHistory();
   }, [refreshHistory]);
 
+  useEffect(() => {
+    nmapVersion().then(
+      (version) => setNmap({ kind: "ok", version }),
+      (e) => setNmap({ kind: "missing", error: String(e) }),
+    );
+  }, []);
+
   async function onRun() {
     const flags = buildFlags(preset, scripts);
-    setView({ kind: "scanning", target, command: buildCommand(flags, target) });
+    const handle = startScan(target, flags, (progress) =>
+      setRun((r) => (r && r.runId === handle.runId ? { ...r, progress } : r)),
+    );
+    setRun({
+      runId: handle.runId,
+      target,
+      command: buildCommand(flags, target),
+      startedAt: Date.now(),
+      progress: null,
+    });
+    setView({ kind: "scanning" });
     try {
-      const result = await runScan(target, flags);
-      setView({ kind: "scan", result, historical: null });
+      const result = await handle.result;
       const list = await listScans();
       setHistory(list);
-      setSelectedId(list[0]?.id ?? null); // the scan we just saved
+      // Only jump to the result if the user is still watching this scan;
+      // otherwise it just appears at the top of the history.
+      if (viewRef.current.kind === "scanning") {
+        setView({ kind: "scan", result, historical: null });
+        setSelectedId(list[0]?.id ?? null); // the scan we just saved
+      }
     } catch (e) {
-      setView({ kind: "error", message: String(e) });
+      if (cancelledRun.current === handle.runId) {
+        if (viewRef.current.kind === "scanning") setView({ kind: "idle" });
+      } else {
+        setView({ kind: "error", message: String(e) });
+      }
+    } finally {
+      setRun(null);
     }
+  }
+
+  function onCancel() {
+    if (!run) return;
+    cancelledRun.current = run.runId;
+    cancelScan(run.runId);
   }
 
   async function onSelectHistory(scan: StoredScan) {
@@ -108,8 +174,8 @@ function App() {
     setView({ kind: "idle" });
   }
 
-  const scanning = view.kind === "scanning";
-  const [title, subtitle] = headerText(view);
+  const scanning = run !== null;
+  const [title, subtitle] = headerText(view, run);
 
   return (
     <div className="app">
@@ -126,11 +192,24 @@ function App() {
           type="button"
           className="btn btn--secondary sidebar__new"
           onClick={newScan}
-          disabled={scanning}
         >
           <Icon name="plus" size={15} />
           New scan
         </button>
+
+        {run && view.kind !== "scanning" && (
+          <button
+            type="button"
+            className="sidebar__run"
+            onClick={() => setView({ kind: "scanning" })}
+          >
+            <span className="spinner" aria-hidden="true" />
+            <span className="sidebar__run-target">{run.target}</span>
+            <span className="sidebar__run-pct">
+              {run.progress ? `${Math.floor(run.progress.percent)}%` : "…"}
+            </span>
+          </button>
+        )}
 
         <div className="sidebar__heading">
           <span>History</span>
@@ -146,7 +225,12 @@ function App() {
 
         <div className="sidebar__footer">
           <Icon name="shield" size={14} />
-          Local only · no telemetry
+          <span>
+            Local only · no telemetry
+            {nmap.kind === "ok" && (
+              <span className="sidebar__nmap">nmap {nmap.version}</span>
+            )}
+          </span>
         </div>
       </aside>
 
@@ -169,6 +253,7 @@ function App() {
 
         <div className="main__scroll">
           <div className="main__inner">
+            {nmap.kind === "missing" && <NmapMissing error={nmap.error} />}
             <ScanForm
               target={target}
               onTargetChange={(t) => {
@@ -214,8 +299,8 @@ function App() {
                 </div>
               )}
 
-              {view.kind === "scanning" && (
-                <ScanningCard target={view.target} command={view.command} />
+              {view.kind === "scanning" && run && (
+                <ScanningCard run={run} onCancel={onCancel} />
               )}
 
               {view.kind === "error" && (
@@ -321,12 +406,15 @@ function App() {
   );
 }
 
-function headerText(view: View): [string, string | null] {
+function headerText(
+  view: View,
+  run: ActiveRun | null,
+): [string, string | null] {
   switch (view.kind) {
     case "idle":
       return ["New scan", "Choose a target and profile"];
     case "scanning":
-      return ["Scanning", view.target];
+      return ["Scanning", run?.target ?? null];
     case "error":
       return ["Scan failed", null];
     case "scan":
@@ -341,21 +429,30 @@ function headerText(view: View): [string, string | null] {
   }
 }
 
-/** In-progress card: a radar sweep, the exact command, and an elapsed timer
- *  (nmap gives no progress over -oX, so elapsed time is the honest signal). */
+function fmtDuration(secs: number): string {
+  if (secs < 60) return `${Math.round(secs)}s`;
+  const m = Math.floor(secs / 60);
+  return `${m}m ${Math.round(secs % 60)}s`;
+}
+
+/** In-progress card: the exact command, nmap's own phase + percent + ETA
+ *  (from `--stats-every`), elapsed time, and Cancel. Before nmap's first
+ *  report — and on platforms where it can't report — the bar is
+ *  indeterminate and elapsed time is the honest signal. */
 function ScanningCard({
-  target,
-  command,
+  run,
+  onCancel,
 }: {
-  target: string;
-  command: string;
+  run: ActiveRun;
+  onCancel: () => void;
 }) {
-  const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const start = Date.now();
-    const id = setInterval(() => setElapsed((Date.now() - start) / 1000), 100);
+    const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
   }, []);
+  const elapsed = (now - run.startedAt) / 1000;
+  const p = run.progress;
 
   return (
     <div className="card scanning">
@@ -363,14 +460,81 @@ function ScanningCard({
         <span className="empty__sweep" />
       </span>
       <div className="scanning__body">
-        <div className="empty__title">
-          Scanning <span className="mono">{target}</span>
+        <div className="scanning__head">
+          <div className="empty__title">
+            Scanning <span className="mono">{run.target}</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={onCancel}
+          >
+            <Icon name="x" size={14} />
+            Cancel
+          </button>
         </div>
-        <code className="scanning__cmd">{command}</code>
+        <code className="scanning__cmd">{run.command}</code>
+        <div
+          className={"progress" + (p ? "" : " progress--indeterminate")}
+          role="progressbar"
+          aria-label="Scan progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={p ? Math.floor(p.percent) : undefined}
+        >
+          <div
+            className="progress__fill"
+            style={p ? { width: `${Math.min(p.percent, 100)}%` } : undefined}
+          />
+        </div>
         <div className="scanning__meta">
           <Icon name="clock" size={14} />
-          {elapsed.toFixed(1)}s elapsed
+          {p ? (
+            <span>
+              {p.task} · {p.percent.toFixed(1)}%
+              {p.remainingSecs != null &&
+                ` · ~${fmtDuration(p.remainingSecs)} left`}
+            </span>
+          ) : (
+            <span>Starting…</span>
+          )}
+          <span className="scanning__elapsed">
+            {fmtDuration(elapsed)} elapsed
+          </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Startup preflight failed: nmap isn't installed / not on PATH. Plain text,
+ *  not links — a link would navigate the app's own webview away. */
+function NmapMissing({ error }: { error: string }) {
+  return (
+    <div className="card error-card" role="alert">
+      <span className="error-card__icon">
+        <Icon name="alert" size={18} />
+      </span>
+      <div className="error-card__body">
+        <div className="error-card__title">nmap isn't installed</div>
+        <p className="nmap-missing__text">
+          Cartograph drives the real nmap binary, which wasn't found on your
+          PATH. Install it, then restart Cartograph:
+        </p>
+        <ul className="nmap-missing__list">
+          <li>
+            Linux: <code>sudo apt install nmap</code> (or your distro's
+            package manager)
+          </li>
+          <li>
+            macOS: <code>brew install nmap</code>
+          </li>
+          <li>
+            Windows: the installer from <code>nmap.org/download</code>{" "}
+            (includes Npcap)
+          </li>
+        </ul>
+        <pre className="error-card__msg">{error}</pre>
       </div>
     </div>
   );
