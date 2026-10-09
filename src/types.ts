@@ -58,3 +58,24 @@ export interface StoredScan {
   openPorts: number;
   elapsedSecs: number | null;
 }
+
+// --- Diff (mirrors diff::ScanDiff) ---
+
+export interface PortDiff {
+  portid: number;
+  protocol: string;
+  kind: string; // "opened" | "closed" | "service-changed"
+  detail: string;
+}
+
+export interface HostDiff {
+  host: string;
+  status: string; // "added" | "removed" | "changed"
+  stateChange: string | null;
+  ports: PortDiff[];
+}
+
+export interface ScanDiff {
+  hosts: HostDiff[];
+  unchanged: boolean;
+}

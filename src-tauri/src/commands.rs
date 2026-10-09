@@ -4,6 +4,7 @@
 use tauri::State;
 
 use crate::db::{self, Db, StoredScan};
+use crate::diff::{self, ScanDiff};
 use crate::scan::{self, ScanResult};
 
 /// Run a scan, persist it, and return the parsed result.
@@ -44,4 +45,21 @@ pub fn get_scan(id: i64, db: State<Db>) -> Result<ScanResult, String> {
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("scan {id} not found"))?;
     scan::parse_nmap_xml(&xml).map_err(|e| e.to_string())
+}
+
+/// Diff two saved scans (old vs new), each re-parsed from its stored XML.
+#[tauri::command]
+pub fn diff_scans(old_id: i64, new_id: i64, db: State<Db>) -> Result<ScanDiff, String> {
+    let conn =
+        db.0.lock()
+            .map_err(|_| "database lock poisoned".to_string())?;
+    let load = |id: i64| -> Result<ScanResult, String> {
+        let xml = db::get_scan_xml(&conn, id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("scan {id} not found"))?;
+        scan::parse_nmap_xml(&xml).map_err(|e| e.to_string())
+    };
+    let old = load(old_id)?;
+    let new = load(new_id)?;
+    Ok(diff::diff_scans(&old, &new))
 }

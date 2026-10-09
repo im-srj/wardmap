@@ -218,6 +218,147 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+}
+.btn--ghost:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* Compare bar ------------------------------------------------------------- */
+.compare-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.compare-bar__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.compare-bar__select {
+  flex: 1;
+  min-width: 140px;
+  padding: 0.35rem 0.5rem;
+  background: var(--panel-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+.compare-bar__arrow {
+  color: var(--muted);
+}
+
+/* Diff view --------------------------------------------------------------- */
+.diff__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.diff__title {
+  font-weight: 650;
+  font-size: 1rem;
+}
+.diff__labels {
+  flex: 1;
+  font-size: 0.82rem;
+}
+.diff__arrow {
+  color: var(--accent);
+}
+
+.diff-host {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.diff-host__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.diff-host__state {
+  font-size: 0.8rem;
+  color: var(--filtered);
+}
+.diff-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+.diff-badge--added {
+  color: var(--open);
+  background: rgba(74, 222, 128, 0.12);
+}
+.diff-badge--removed {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.12);
+}
+.diff-badge--changed {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.diff-ports {
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0;
+}
+.diff-port {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+}
+.diff-port__sign {
+  font-family: var(--mono);
+  font-weight: 700;
+  width: 1ch;
+  text-align: center;
+}
+.diff-port__port {
+  min-width: 90px;
+}
+.diff-port__kind {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  min-width: 120px;
+}
+.diff-port__detail {
+  color: var(--text);
+}
+.diff-port--opened .diff-port__sign {
+  color: var(--open);
+}
+.diff-port--closed .diff-port__sign {
+  color: var(--danger);
+}
+.diff-port--service-changed .diff-port__sign {
+  color: var(--filtered);
+}
 
 /* Presets ----------------------------------------------------------------- */
 .presets {

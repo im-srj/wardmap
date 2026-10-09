@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod diff;
 pub mod scan;
 
 use std::sync::Mutex;
@@ -21,6 +22,7 @@ pub fn run() {
             commands::run_nmap_scan,
             commands::list_scans,
             commands::get_scan,
+            commands::diff_scans,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
