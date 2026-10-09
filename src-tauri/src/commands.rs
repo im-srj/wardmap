@@ -4,6 +4,7 @@
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
+use crate::cmdline::{self, Analysis};
 use crate::db::{self, Db, StoredScan};
 use crate::diff::{self, ScanDiff};
 use crate::identify;
@@ -12,21 +13,39 @@ use crate::runner::{self, Runs, ScanProgress};
 use crate::scan::{self, ScanResult};
 
 /// Run a scan, streaming progress over `on_progress`, then persist it and
-/// return the parsed result. Async + `spawn_blocking` so a long scan never
-/// ties up the main thread; `run_id` (chosen by the frontend) is what
-/// `cancel_scan` takes. A cancelled scan rejects with "scan cancelled" and
-/// is not saved.
+/// return the parsed result. `command` is the full command as shown to the
+/// user (a leading `nmap` is optional); it is analyzed here — the frontend's
+/// own view of it is never trusted — and refused if it fails the checks in
+/// `cmdline`. Async + `spawn_blocking` so a long scan never ties up the main
+/// thread; `run_id` (chosen by the frontend) is what `cancel_scan` takes. A
+/// cancelled scan rejects with "scan cancelled" and is not saved.
 #[tauri::command]
 pub async fn run_nmap_scan(
     run_id: String,
-    target: String,
-    flags: Vec<String>,
+    command: String,
     on_progress: Channel<ScanProgress>,
     app: AppHandle,
 ) -> Result<ScanResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        let analysis = cmdline::analyze_text(&command);
+        // History is keyed by target; a list-file scan is labelled by it.
+        let label = {
+            let targets: Vec<&str> = analysis.targets().collect();
+            if targets.is_empty() {
+                analysis
+                    .items
+                    .iter()
+                    .find(|i| i.name == "-iL")
+                    .and_then(|i| i.value.as_deref())
+                    .map(|f| format!("-iL {f}"))
+                    .unwrap_or_default()
+            } else {
+                targets.join(" ")
+            }
+        };
+
         // Capture the raw XML so we can both parse it now and store it verbatim.
-        let xml = runner::run(&app.state::<Runs>(), &run_id, &target, &flags, |p| {
+        let xml = runner::run(&app.state::<Runs>(), &run_id, &analysis, |p| {
             let _ = on_progress.send(p);
         })
         .map_err(|e| e.to_string())?;
@@ -41,13 +60,20 @@ pub async fn run_nmap_scan(
         let conn =
             db.0.lock()
                 .map_err(|_| "database lock poisoned".to_string())?;
-        let scan_id = db::insert_scan(&conn, &target, &result, &xml).map_err(|e| e.to_string())?;
+        let scan_id = db::insert_scan(&conn, &label, &result, &xml).map_err(|e| e.to_string())?;
         db::insert_identities(&conn, scan_id, &ids).map_err(|e| e.to_string())?;
 
         Ok(result)
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Parse a command the way nmap would and report Cartograph's checks — the
+/// live feedback behind the editable command line and the option builder.
+#[tauri::command]
+pub fn analyze_command(command: String) -> Analysis {
+    cmdline::analyze_text(&command)
 }
 
 /// Cancel a running scan. False if it already finished.
