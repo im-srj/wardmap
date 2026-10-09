@@ -146,3 +146,26 @@ dev`. Confirmed needed on the GT 730 dev box; harmless/ignored on macOS and
 Windows (no webkit2gtk there). Not baked into the default script so it
 doesn't mask the var cross-platform — set it in your shell if your GPU needs
 it. Revisit for the Linux package in M7.
+
+### M1 — Nmap subprocess + XML parsing DONE (2026-10-09)
+Restructured to the standard Tauri lib+thin-bin layout (`src/lib.rs` exposes
+`run()` + `pub mod scan`; `src/main.rs` just calls `cartograph_lib::run()`),
+so parsing code is shared by the app, tests, and the example harness.
+- `src/scan.rs`: typed model (`ScanResult/Host/Address/Port/Service/RunStats`,
+  serde camelCase for the frontend), `parse_nmap_xml` (roxmltree, no regex),
+  `run_scan` (spawns `nmap -oX - <flags> <target>`), and `#[tauri::command]
+  run_nmap_scan`. Registered in the Tauri builder (ready for M2's UI).
+- Security: `run_scan` uses `Command` with explicit args (no shell), and
+  rejects a target that is empty or starts with `-` (flag-injection guard).
+  Had to set roxmltree `allow_dtd: true` for nmap's `<!DOCTYPE nmaprun>`
+  (safe — no entities declared, no external-entity expansion).
+- Tests: 8 unit tests, pass WITHOUT nmap installed, driven by two committed
+  fixtures (`tests/fixtures/localhost-connect.xml` = a frozen real scan;
+  `multi-host-version.xml` = crafted, exercises -sV versions, mac+vendor, a
+  down host). Covers happy path, bad portid, malformed XML, non-nmap root,
+  and both target-guard rejections.
+- Live proof: `cargo run --example scan_demo -- localhost -F` returns correct
+  structured JSON (8 open ports on 127.0.0.1). Harness is temporary (M2 UI
+  supersedes it). `cargo fmt` + `cargo clippy --all-targets -D warnings` clean.
+Next: M2 — minimal UI (target input, intensity presets, live command preview,
+sortable results table) calling `run_nmap_scan`.
