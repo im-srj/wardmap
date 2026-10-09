@@ -283,3 +283,19 @@ deferred cert diffing).
   as a script spec (e.g. `--script=vuln`), ESLint/Prettier aren't actually
   configured in the repo yet (CI only runs `tsc --noEmit`).
 Next: M7 — packaging (Homebrew / AppImage-or-apt / winget; real icon).
+
+### UI overhaul + themes (2026-10-09, between M6 and M7; GUI check pending)
+- Redesigned shell: brand sidebar (New scan, filterable history w/ relative
+  times), top bar per view, stat cards, filterable results table, terminal-style
+  syntax-coloured command preview, radar empty/scanning states (elapsed timer),
+  polished diff (summary stats + tinted rows). Scan options auto-collapse while
+  results/diff are shown; command preview + intrusive-script warning never hide.
+- Themes: tokens are `[data-theme="<id>"]` blocks in `App.css` (attribute, not
+  :root-only, so Appearance-panel previews render each theme exactly). Six:
+  Midnight (default), Graphite, Terminal, Arctic, Ember, Daylight. `src/themes.ts`
+  persists choice in localStorage; applied in `main.tsx` before first paint.
+  Derived tints use `color-mix()`. Topology colours come from `--viz-1..6`.
+- Fonts bundled locally via `@fontsource-variable/inter` + `jetbrains-mono`
+  (no runtime fetch — keeps the no-phone-home rule). Icons hand-rolled in
+  `components/Icon.tsx` (no icon lib). Window default 1280×840, min 900×600.
+
