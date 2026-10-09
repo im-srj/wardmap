@@ -2253,6 +2253,24 @@ select {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.xdetail__role {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.xhost__icon--computer,
+.xhost__icon--apple {
+  --c: var(--viz-1);
+}
+.xhost__icon--phone,
+.xhost__icon--tv {
+  --c: var(--viz-4);
+}
+.xhost__icon--iot {
+  --c: var(--viz-3);
+}
+.xhost__icon--vm {
+  --c: var(--viz-2);
+}
 .xdetail__empty,
 .xdetail__hidden {
   margin: 0;
