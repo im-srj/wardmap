@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { StoredScan } from "../types";
+import { Icon } from "./Icon";
 
 interface Props {
   history: StoredScan[];
@@ -29,10 +30,13 @@ export function CompareBar({ history, onCompare }: Props) {
   }
 
   return (
-    <div className="compare-bar">
-      <span className="compare-bar__label">Compare</span>
+    <div className="card compare-bar">
+      <span className="compare-bar__label">
+        <Icon name="compare" size={15} />
+        Compare
+      </span>
       <select
-        className="compare-bar__select"
+        className="select compare-bar__select"
         value={effOld}
         onChange={(e) => setOldId(Number(e.target.value))}
         aria-label="Baseline (older) scan"
@@ -43,9 +47,9 @@ export function CompareBar({ history, onCompare }: Props) {
           </option>
         ))}
       </select>
-      <span className="compare-bar__arrow">→</span>
+      <Icon name="arrowRight" size={15} className="compare-bar__arrow" />
       <select
-        className="compare-bar__select"
+        className="select compare-bar__select"
         value={effNew}
         onChange={(e) => setNewId(Number(e.target.value))}
         aria-label="Newer scan"
@@ -58,12 +62,12 @@ export function CompareBar({ history, onCompare }: Props) {
       </select>
       <button
         type="button"
-        className="btn btn--ghost"
+        className="btn btn--secondary"
         onClick={run}
         disabled={effOld === effNew}
         title={effOld === effNew ? "Pick two different scans" : undefined}
       >
-        Compare
+        Show diff
       </button>
     </div>
   );

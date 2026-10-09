@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod diff;
+pub mod identify;
 pub mod nse;
 pub mod scan;
 
