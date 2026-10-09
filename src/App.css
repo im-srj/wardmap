@@ -1368,6 +1368,163 @@ select {
 .tok-arg {
   color: var(--text);
 }
+.cmd-preview__actions {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+.cmd-preview__code--clickable {
+  cursor: text;
+}
+.cmd-preview__code--clickable:hover {
+  background: var(--surface-3);
+}
+.cmd-preview__code--edit {
+  display: flex;
+  align-items: center;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+.cmd-preview__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit;
+}
+.cmd-preview__input:focus {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 0;
+}
+
+/* Issues the backend (or the catalogue) found with the command. */
+.cmd-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.7rem;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+.cmd-issue {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.cmd-issue .icon {
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+}
+.cmd-issue--block {
+  color: var(--bad);
+}
+.cmd-issue--block span {
+  color: var(--text);
+}
+.cmd-issue--warn .icon {
+  color: var(--warn);
+}
+.cmd-issue--warn span {
+  color: var(--text-muted);
+}
+
+/* Option builder (shares the NSE panel's bar, chips, list and tags). */
+.nse-chip--unknown {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.opt-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.opt-section__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.opt-section__head:hover {
+  background: var(--surface-3);
+}
+.opt-section__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.opt-section__n {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.opt-list {
+  max-height: 420px;
+}
+.opt-row__main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+}
+.opt-row__pick {
+  min-width: 9.5rem;
+}
+.opt-row__select,
+.opt-row__input {
+  height: 28px;
+  padding: 0 0.5rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+.opt-row__select {
+  min-width: 9.5rem;
+  font-family: var(--mono);
+}
+.opt-row__input {
+  width: 15rem;
+  max-width: 100%;
+}
+.opt-row__input::placeholder {
+  color: var(--text-faint);
+}
+.opt-row__select:focus,
+.opt-row__input:focus {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+.opt-row__summary {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.opt-row__tags {
+  flex: 0 0 auto;
+}
+.opt-footnote {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.74rem;
+}
 
 /* Compare bar --------------------------------------------------------------- */
 .compare-bar {

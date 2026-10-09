@@ -1,16 +1,25 @@
 import { useState, type FormEvent } from "react";
-import { PRESETS, buildCommand, buildFlags, type Preset } from "../presets";
+import { findOption, setOption } from "../options";
+import { PRESETS, applyPreset, matchingPreset } from "../presets";
+import type { CmdIssue, CmdItem } from "../types";
 import { CommandPreview } from "./CommandPreview";
 import { Icon, type IconName } from "./Icon";
+import { OptionsBuilder } from "./OptionsBuilder";
 import { ScriptBrowser } from "./ScriptBrowser";
 
 interface Props {
   target: string;
   onTargetChange: (t: string) => void;
-  preset: Preset;
-  onPresetChange: (p: Preset) => void;
-  scripts: string[];
-  onScriptsChange: (ids: string[]) => void;
+  /** The command's options (everything but the targets). */
+  items: CmdItem[];
+  onItemsChange: (items: CmdItem[]) => void;
+  /** The full command line, as it will run. */
+  command: string;
+  issues: CmdIssue[];
+  /** The command line was edited by hand. */
+  onEditCommand: (text: string) => void;
+  /** The backend has checked the current command and nothing blocks it. */
+  canRun: boolean;
   onRun: () => void;
   scanning: boolean;
   /** Fold the profile/NSE options behind a summary row (used while results
@@ -24,24 +33,41 @@ const PRESET_ICONS: Record<string, IconName> = {
   version: "fingerprint",
 };
 
+const SCRIPT_DEF = findOption("--script")!;
+
 export function ScanForm({
   target,
   onTargetChange,
-  preset,
-  onPresetChange,
-  scripts,
-  onScriptsChange,
+  items,
+  onItemsChange,
+  command,
+  issues,
+  onEditCommand,
+  canRun,
   onRun,
   scanning,
   collapsible,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const showOptions = !collapsible || expanded;
-  const command = buildCommand(buildFlags(preset, scripts), target);
+  const preset = matchingPreset(items);
+
+  // The script browser edits the --script option's comma list. Categories or
+  // expressions typed into the command line ride along untouched.
+  const scripts = (
+    items.find((i) => i.name === "--script")?.value ?? ""
+  )
+    .split(",")
+    .filter(Boolean);
+  function onScriptsChange(ids: string[]) {
+    onItemsChange(
+      setOption(items, SCRIPT_DEF, ids.length ? ids.join(",") : undefined),
+    );
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!scanning && target.trim()) onRun();
+    if (!scanning && canRun) onRun();
   }
 
   return (
@@ -64,7 +90,7 @@ export function ScanForm({
         <button
           type="submit"
           className="btn btn--primary btn--lg"
-          disabled={scanning || !target.trim()}
+          disabled={scanning || !canRun}
         >
           {scanning ? (
             <>
@@ -91,9 +117,9 @@ export function ScanForm({
           <span className="options-toggle__label">Scan options</span>
           {!expanded && (
             <span className="options-toggle__summary">
-              {preset.label}
-              {scripts.length > 0 &&
-                ` · ${scripts.length} NSE script${scripts.length === 1 ? "" : "s"}`}
+              {preset?.label ?? "Custom"}
+              {items.length > 0 &&
+                ` · ${items.length} option${items.length === 1 ? "" : "s"}`}
             </span>
           )}
         </button>
@@ -107,15 +133,15 @@ export function ScanForm({
               <label
                 key={p.id}
                 className={
-                  "preset" + (p.id === preset.id ? " preset--active" : "")
+                  "preset" + (p.id === preset?.id ? " preset--active" : "")
                 }
               >
                 <input
                   type="radio"
                   name="preset"
                   value={p.id}
-                  checked={p.id === preset.id}
-                  onChange={() => onPresetChange(p)}
+                  checked={p.id === preset?.id}
+                  onChange={() => onItemsChange(applyPreset(items, p))}
                 />
                 <span className="preset__icon">
                   <Icon name={PRESET_ICONS[p.id] ?? "layers"} size={16} />
@@ -124,7 +150,9 @@ export function ScanForm({
                   <span className="preset__label">
                     {p.label}
                     <code className="preset__flags">
-                      {p.flags.length ? p.flags.join(" ") : "default"}
+                      {p.items.length
+                        ? p.items.flatMap((i) => i.tokens).join(" ")
+                        : "default"}
                     </code>
                   </span>
                   <span className="preset__desc">{p.description}</span>
@@ -141,7 +169,17 @@ export function ScanForm({
         collapsed={!showOptions}
       />
 
-      <CommandPreview command={command} />
+      <OptionsBuilder
+        items={items}
+        onChange={onItemsChange}
+        collapsed={!showOptions}
+      />
+
+      <CommandPreview
+        command={command}
+        issues={issues}
+        onEdit={onEditCommand}
+      />
     </form>
   );
 }

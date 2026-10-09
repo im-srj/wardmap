@@ -1,3 +1,4 @@
+pub mod cmdline;
 pub mod commands;
 pub mod db;
 pub mod diff;
@@ -25,6 +26,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::run_nmap_scan,
             commands::cancel_scan,
+            commands::analyze_command,
             commands::nmap_version,
             commands::list_scans,
             commands::get_scan,
