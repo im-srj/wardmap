@@ -14,8 +14,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
+use crate::cmdline;
 use crate::identify::HostIdentity;
-use crate::scan::ScanResult;
+use crate::scan::{self, ScanResult};
 
 /// Tauri-managed database handle. `Connection` is `Send` but not `Sync`, so we
 /// guard it with a `Mutex` to make the state `Send + Sync`.
@@ -29,6 +30,9 @@ pub struct StoredScan {
     pub target: String,
     /// The command line nmap recorded for the run.
     pub args: String,
+    /// The command to run this scan again: what the user ran (incl. `sudo`),
+    /// or for imported / older scans, rebuilt from `args`.
+    pub command: String,
     /// Unix epoch (seconds) when the scan was saved.
     pub created_at: i64,
     pub hosts_up: i64,
@@ -62,22 +66,55 @@ pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Connection> {
             vendor         TEXT,
             mac_randomized INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (scan_id, addr)
+        );
+        -- Saved scan profiles: just the options (no targets), as typed.
+        CREATE TABLE IF NOT EXISTS profiles (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT    NOT NULL UNIQUE,
+            description TEXT    NOT NULL DEFAULT '',
+            command     TEXT    NOT NULL,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
         );",
     )?;
+    // The command as the user ran it. NULL for scans saved before it was
+    // recorded, and for imported ones.
+    add_column_if_missing(&conn, "scans", "command", "TEXT")?;
     Ok(conn)
 }
 
-fn now_unix() -> i64 {
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    decl: &str,
+) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let exists = stmt
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .iter()
+        .any(|c| c == column);
+    if !exists {
+        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+    }
+    Ok(())
+}
+
+pub fn now_unix() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
 }
 
-/// Insert a completed scan. Returns the new row id.
+/// Insert a completed scan saved at `created_at` (unix seconds). `command` is
+/// the command as the user ran it, when known. Returns the new row id.
 pub fn insert_scan(
     conn: &Connection,
     target: &str,
+    command: Option<&str>,
+    created_at: i64,
     result: &ScanResult,
     raw_xml: &str,
 ) -> rusqlite::Result<i64> {
@@ -97,39 +134,185 @@ pub fn insert_scan(
     let elapsed = result.summary.as_ref().and_then(|s| s.elapsed_secs);
 
     conn.execute(
-        "INSERT INTO scans (target, args, created_at, raw_xml, hosts_up, open_ports, elapsed_secs)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO scans
+         (target, args, created_at, raw_xml, hosts_up, open_ports, elapsed_secs, command)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             target,
             result.args,
-            now_unix(),
+            created_at,
             raw_xml,
             hosts_up,
             open_ports,
-            elapsed
+            elapsed,
+            command
         ],
     )?;
     Ok(conn.last_insert_rowid())
 }
 
+const SCAN_COLUMNS: &str =
+    "id, target, args, created_at, hosts_up, open_ports, elapsed_secs, command";
+
+fn stored_scan(r: &rusqlite::Row) -> rusqlite::Result<StoredScan> {
+    let args: String = r.get(2)?;
+    let command = r
+        .get::<_, Option<String>>(7)?
+        .unwrap_or_else(|| cmdline::command_from_args(&args));
+    Ok(StoredScan {
+        id: r.get(0)?,
+        target: r.get(1)?,
+        args,
+        command,
+        created_at: r.get(3)?,
+        hosts_up: r.get(4)?,
+        open_ports: r.get(5)?,
+        elapsed_secs: r.get(6)?,
+    })
+}
+
 /// All saved scans, newest first.
 pub fn list_scans(conn: &Connection) -> rusqlite::Result<Vec<StoredScan>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {SCAN_COLUMNS} FROM scans ORDER BY created_at DESC, id DESC"
+    ))?;
+    let rows = stmt.query_map([], stored_scan)?;
+    rows.collect()
+}
+
+/// One saved scan's history row.
+pub fn get_scan(conn: &Connection, id: i64) -> rusqlite::Result<Option<StoredScan>> {
+    conn.query_row(
+        &format!("SELECT {SCAN_COLUMNS} FROM scans WHERE id = ?1"),
+        [id],
+        stored_scan,
+    )
+    .optional()
+}
+
+/// Why an XML file couldn't be imported.
+#[derive(Debug)]
+pub enum ImportError {
+    Parse(scan::ParseError),
+    Db(rusqlite::Error),
+}
+
+impl std::fmt::Display for ImportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportError::Parse(e) => write!(f, "not nmap XML output ({e})"),
+            ImportError::Db(e) => write!(f, "database error: {e}"),
+        }
+    }
+}
+
+/// Import nmap `-oX` output produced elsewhere (a CLI run, another machine)
+/// into history, dated by when nmap started it. Returns the new row id, or
+/// `None` when the identical XML is already in history.
+pub fn import_scan(conn: &Connection, xml: &str) -> Result<Option<i64>, ImportError> {
+    let result = scan::parse_nmap_xml(xml).map_err(ImportError::Parse)?;
+    let existing: Option<i64> = conn
+        .query_row("SELECT id FROM scans WHERE raw_xml = ?1", [xml], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(ImportError::Db)?;
+    if existing.is_some() {
+        return Ok(None);
+    }
+    let command = cmdline::command_from_args(&result.args);
+    let mut label = cmdline::analyze_text(&command).target_label();
+    if label.is_empty() {
+        label = result
+            .hosts
+            .iter()
+            .find_map(|h| h.addresses.first())
+            .map(|a| a.addr.clone())
+            .unwrap_or_else(|| "imported scan".into());
+    }
+    let created_at = result.start.unwrap_or_else(now_unix);
+    insert_scan(conn, &label, None, created_at, &result, xml)
+        .map(Some)
+        .map_err(ImportError::Db)
+}
+
+/// A saved scan profile (see `commands::Profile` for what the UI gets).
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredProfile {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    /// The options, as typed after `nmap` (no targets).
+    pub command: String,
+}
+
+/// All saved profiles, by name.
+pub fn list_profiles(conn: &Connection) -> rusqlite::Result<Vec<StoredProfile>> {
     let mut stmt = conn.prepare(
-        "SELECT id, target, args, created_at, hosts_up, open_ports, elapsed_secs
-         FROM scans ORDER BY created_at DESC, id DESC",
+        "SELECT id, name, description, command FROM profiles ORDER BY name COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], |r| {
-        Ok(StoredScan {
+        Ok(StoredProfile {
             id: r.get(0)?,
-            target: r.get(1)?,
-            args: r.get(2)?,
-            created_at: r.get(3)?,
-            hosts_up: r.get(4)?,
-            open_ports: r.get(5)?,
-            elapsed_secs: r.get(6)?,
+            name: r.get(1)?,
+            description: r.get(2)?,
+            command: r.get(3)?,
         })
     })?;
     rows.collect()
+}
+
+/// Create (`id: None`) or update a profile. Returns its id. Fails with a
+/// constraint error if another profile already has `name`.
+pub fn save_profile(
+    conn: &Connection,
+    id: Option<i64>,
+    name: &str,
+    description: &str,
+    command: &str,
+) -> rusqlite::Result<i64> {
+    let now = now_unix();
+    match id {
+        Some(id) => {
+            let n = conn.execute(
+                "UPDATE profiles SET name = ?2, description = ?3, command = ?4, updated_at = ?5
+                 WHERE id = ?1",
+                params![id, name, description, command, now],
+            )?;
+            if n == 0 {
+                return Err(rusqlite::Error::QueryReturnedNoRows);
+            }
+            Ok(id)
+        }
+        None => {
+            conn.execute(
+                "INSERT INTO profiles (name, description, command, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?4)",
+                params![name, description, command, now],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }
+    }
+}
+
+/// Add a profile unless one with that name exists. True if it was added.
+pub fn insert_profile_if_new(
+    conn: &Connection,
+    name: &str,
+    description: &str,
+    command: &str,
+) -> rusqlite::Result<bool> {
+    let n = conn.execute(
+        "INSERT OR IGNORE INTO profiles (name, description, command, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?4)",
+        params![name, description, command, now_unix()],
+    )?;
+    Ok(n == 1)
+}
+
+pub fn delete_profile(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM profiles WHERE id = ?1", [id])?;
+    Ok(())
 }
 
 /// Fetch the raw XML for one saved scan, if it exists.
@@ -202,15 +385,11 @@ mod tests {
     const SAMPLE: &str = include_str!("../tests/fixtures/multi-host-version.xml");
 
     fn mem_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "CREATE TABLE scans (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, args TEXT NOT NULL,
-                created_at INTEGER NOT NULL, raw_xml TEXT NOT NULL, hosts_up INTEGER NOT NULL,
-                open_ports INTEGER NOT NULL, elapsed_secs REAL);",
-        )
-        .unwrap();
-        conn
+        open(":memory:").unwrap()
+    }
+
+    fn insert(conn: &Connection, target: &str, result: &ScanResult) -> i64 {
+        insert_scan(conn, target, None, now_unix(), result, SAMPLE).unwrap()
     }
 
     #[test]
@@ -218,7 +397,7 @@ mod tests {
         let conn = mem_db();
         let result = parse_nmap_xml(SAMPLE).unwrap();
 
-        let id = insert_scan(&conn, "192.168.1.10", &result, SAMPLE).unwrap();
+        let id = insert(&conn, "192.168.1.10", &result);
         assert!(id > 0);
 
         let scans = list_scans(&conn).unwrap();
@@ -239,8 +418,8 @@ mod tests {
     fn identities_roundtrip_per_scan() {
         let conn = open(":memory:").unwrap(); // real schema incl. host_identity
         let result = parse_nmap_xml(SAMPLE).unwrap();
-        let a = insert_scan(&conn, "lan", &result, SAMPLE).unwrap();
-        let b = insert_scan(&conn, "lan", &result, SAMPLE).unwrap();
+        let a = insert(&conn, "lan", &result);
+        let b = insert(&conn, "lan", &result);
 
         let id = HostIdentity {
             mdns_name: Some("Pixel-7.local".into()),
@@ -268,7 +447,7 @@ mod tests {
         let result = parse_nmap_xml(SAMPLE).unwrap();
         {
             let conn = open(&path).unwrap(); // real schema + indexes on a real file
-            insert_scan(&conn, "persist-target", &result, SAMPLE).unwrap();
+            insert(&conn, "persist-target", &result);
         } // connection dropped — simulates the app closing
         {
             let conn = open(&path).unwrap(); // reopen — simulates app restart
@@ -285,11 +464,88 @@ mod tests {
     fn list_is_newest_first() {
         let conn = mem_db();
         let result = parse_nmap_xml(SAMPLE).unwrap();
-        let first = insert_scan(&conn, "a", &result, SAMPLE).unwrap();
-        let second = insert_scan(&conn, "b", &result, SAMPLE).unwrap();
+        let first = insert(&conn, "a", &result);
+        let second = insert(&conn, "b", &result);
         let scans = list_scans(&conn).unwrap();
         // Newest (highest id) first.
         assert_eq!(scans[0].id, second);
         assert_eq!(scans[1].id, first);
+    }
+
+    #[test]
+    fn command_is_stored_or_rebuilt_from_args() {
+        let conn = mem_db();
+        let result = parse_nmap_xml(SAMPLE).unwrap();
+        let ran = insert_scan(
+            &conn,
+            "h",
+            Some("sudo nmap -sS h"),
+            now_unix(),
+            &result,
+            SAMPLE,
+        )
+        .unwrap();
+        let old = insert(&conn, "h", &result);
+        assert_eq!(
+            get_scan(&conn, ran).unwrap().unwrap().command,
+            "sudo nmap -sS h"
+        );
+        // No stored command: rebuilt from nmap's recorded args.
+        let rebuilt = get_scan(&conn, old).unwrap().unwrap().command;
+        assert_eq!(rebuilt, cmdline::command_from_args(&result.args));
+        assert!(!rebuilt.contains("-oX"), "{rebuilt}");
+    }
+
+    #[test]
+    fn import_dates_by_scan_start_and_skips_duplicates() {
+        let conn = mem_db();
+        let result = parse_nmap_xml(SAMPLE).unwrap();
+        let id = import_scan(&conn, SAMPLE).unwrap().expect("imported");
+        let row = get_scan(&conn, id).unwrap().unwrap();
+        assert_eq!(Some(row.created_at), result.start);
+        assert!(!row.target.is_empty());
+        assert!(import_scan(&conn, SAMPLE).unwrap().is_none()); // already there
+        assert!(matches!(
+            import_scan(&conn, "<html/>"),
+            Err(ImportError::Parse(_))
+        ));
+        assert_eq!(list_scans(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn profiles_crud_and_unique_names() {
+        let conn = mem_db();
+        let a = save_profile(&conn, None, "Web", "web ports", "-p 80,443 -sV").unwrap();
+        assert!(save_profile(&conn, None, "Web", "", "-F").is_err()); // name taken
+        save_profile(&conn, Some(a), "Web", "web ports", "-p 80,443,8080 -sV").unwrap();
+        assert!(!insert_profile_if_new(&conn, "Web", "", "-F").unwrap());
+        assert!(insert_profile_if_new(&conn, "Another", "", "-F").unwrap());
+
+        let all = list_profiles(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].name, "Another"); // by name
+        assert_eq!(all[1].command, "-p 80,443,8080 -sV");
+
+        delete_profile(&conn, a).unwrap();
+        assert_eq!(list_profiles(&conn).unwrap().len(), 1);
+        assert!(save_profile(&conn, Some(a), "Gone", "", "").is_err());
+    }
+
+    #[test]
+    fn open_migrates_a_database_without_the_command_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE scans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, args TEXT NOT NULL,
+                created_at INTEGER NOT NULL, raw_xml TEXT NOT NULL, hosts_up INTEGER NOT NULL,
+                open_ports INTEGER NOT NULL, elapsed_secs REAL);
+             INSERT INTO scans (target, args, created_at, raw_xml, hosts_up, open_ports)
+             VALUES ('h', 'nmap -oX - -F h', 1, '', 1, 0);",
+        )
+        .unwrap();
+        // Run the same migration `open` runs, twice (idempotent).
+        add_column_if_missing(&conn, "scans", "command", "TEXT").unwrap();
+        add_column_if_missing(&conn, "scans", "command", "TEXT").unwrap();
+        assert_eq!(list_scans(&conn).unwrap()[0].command, "nmap -F h");
     }
 }

@@ -2,8 +2,10 @@ pub mod cmdline;
 pub mod commands;
 pub mod db;
 pub mod diff;
+pub mod export;
 pub mod identify;
 pub mod nse;
+pub mod profiles;
 pub mod runner;
 pub mod scan;
 
@@ -13,6 +15,7 @@ use tauri::Manager;
 /// Builds and runs the Tauri application.
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Store the database in the OS app-data dir (keyed by the bundle
             // identifier), so scans persist across restarts.
@@ -32,6 +35,12 @@ pub fn run() {
             commands::get_scan,
             commands::diff_scans,
             commands::list_nse_scripts,
+            commands::list_profiles,
+            commands::save_profile,
+            commands::delete_profile,
+            commands::import_scans,
+            commands::import_zenmap_profiles,
+            commands::export_scan,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

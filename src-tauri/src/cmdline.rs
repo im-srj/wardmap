@@ -243,6 +243,21 @@ impl Analysis {
             .map(|i| i.name.as_str())
     }
 
+    /// How the scan is labelled in history: its targets, or the list file
+    /// for an `-iL` scan; empty when there are neither.
+    pub fn target_label(&self) -> String {
+        let targets: Vec<&str> = self.targets().collect();
+        if !targets.is_empty() {
+            return targets.join(" ");
+        }
+        self.items
+            .iter()
+            .find(|i| i.name == "-iL")
+            .and_then(|i| i.value.as_deref())
+            .map(|f| format!("-iL {f}"))
+            .unwrap_or_default()
+    }
+
     /// Human-readable reasons the command can't run, one per line.
     pub fn block_reasons(&self) -> String {
         self.issues
@@ -300,6 +315,56 @@ pub fn analyze_text(text: &str) -> Analysis {
         }
     }
     a
+}
+
+/// Options Cartograph adds to every run (or that only redirect output), so a
+/// recorded command line drops them before it can be run again.
+const CAPTURE_OPTIONS: &[&str] = &[
+    "-oA",
+    "-oN",
+    "-oM",
+    "-oG",
+    "-oS",
+    "-oH",
+    "-oX",
+    "--stats-every",
+];
+
+/// The command to run a scan again, from the command line nmap recorded for
+/// it (`<nmaprun args="…">`): the binary path becomes `nmap`, and output and
+/// progress options (ours, or the CLI user's `-oX file`) are dropped. nmap
+/// records args unquoted, so a value with spaces may not round-trip; the
+/// result is analyzed again before it can run, like anything typed.
+pub fn command_from_args(args: &str) -> String {
+    let mut argv = shell_words::split(args)
+        .unwrap_or_else(|_| args.split_whitespace().map(String::from).collect());
+    if argv.first().is_some_and(|t| is_nmap_binary(t)) {
+        argv.remove(0);
+    }
+    let kept: Vec<String> = analyze_argv(&argv)
+        .items
+        .into_iter()
+        .filter(|i| !(i.kind == Kind::Option && CAPTURE_OPTIONS.contains(&i.name.as_str())))
+        .flat_map(|i| i.tokens)
+        .collect();
+    if kept.is_empty() {
+        "nmap".into()
+    } else {
+        format!("nmap {}", shell_words::join(kept))
+    }
+}
+
+/// Just the options of a command (no `sudo`, `nmap` or targets), quoted —
+/// what a scan profile stores. Targets are dropped on purpose: a profile says
+/// *how* to scan, and the user enters *what* each time.
+pub fn options_only(command: &str) -> String {
+    let a = analyze_text(command);
+    shell_words::join(
+        a.items
+            .into_iter()
+            .filter(|i| i.kind != Kind::Target)
+            .flat_map(|i| i.tokens),
+    )
 }
 
 fn is_nmap_binary(t: &str) -> bool {
@@ -948,5 +1013,42 @@ mod tests {
         assert_eq!(short_arg('n'), Some(Arg::No));
         assert_eq!(short_arg('x'), None);
         assert_eq!(short_arg(':'), None);
+    }
+
+    #[test]
+    fn command_from_recorded_args_drops_capture_options() {
+        // What our runner records (under pkexec the binary is a full path).
+        assert_eq!(
+            command_from_args("/usr/bin/nmap --stats-every 1s -oX - -sV -p 22,80 localhost"),
+            "nmap -sV -p 22,80 localhost"
+        );
+        // A CLI user's own output flags, in any spelling.
+        assert_eq!(
+            command_from_args("nmap -oA out -T4 -oXscan.xml 10.0.0.0/24"),
+            "nmap -T4 10.0.0.0/24"
+        );
+        assert_eq!(command_from_args("nmap -oX -"), "nmap");
+        // Values that need quoting come back quoted.
+        assert_eq!(
+            command_from_args("nmap --script \"http-* and not intrusive\" h"),
+            "nmap --script 'http-* and not intrusive' h"
+        );
+    }
+
+    #[test]
+    fn options_only_strips_sudo_binary_and_targets() {
+        assert_eq!(
+            options_only("sudo nmap -sS -T4 scanme.nmap.org 10.0.0.1"),
+            "-sS -T4"
+        );
+        assert_eq!(options_only("nmap"), "");
+        assert_eq!(options_only("-p- -sV"), "-p- -sV");
+    }
+
+    #[test]
+    fn target_label_prefers_targets_then_list_file() {
+        assert_eq!(an("nmap -F a b").target_label(), "a b");
+        assert_eq!(an("nmap -iL hosts.txt").target_label(), "-iL hosts.txt");
+        assert_eq!(an("nmap -F").target_label(), "");
     }
 }
