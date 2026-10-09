@@ -19,7 +19,8 @@ use std::sync::Mutex;
 use quick_xml::events::Event;
 use serde::Serialize;
 
-use crate::scan::{validate_target, ScanError};
+use crate::cmdline::Analysis;
+use crate::scan::ScanError;
 
 /// One progress update, from a `<taskprogress>` element.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -39,6 +40,8 @@ pub enum RunError {
     Cancelled,
     /// A scan with this run id is already running.
     DuplicateRun(String),
+    /// The command failed Cartograph's checks (see `cmdline`); never spawned.
+    Blocked(String),
 }
 
 impl std::fmt::Display for RunError {
@@ -47,6 +50,7 @@ impl std::fmt::Display for RunError {
             RunError::Scan(e) => e.fmt(f),
             RunError::Cancelled => write!(f, "scan cancelled"),
             RunError::DuplicateRun(id) => write!(f, "a scan with id {id:?} is already running"),
+            RunError::Blocked(why) => write!(f, "{why}"),
         }
     }
 }
@@ -94,19 +98,24 @@ impl Runs {
 
 /// Run nmap to completion, calling `on_progress` as it reports, and return
 /// the raw `-oX` XML. Blocks the calling thread for the scan's duration.
+///
+/// Takes an [`Analysis`] rather than raw args so nothing can reach nmap
+/// without passing `cmdline`'s checks; a blocked command is refused here.
 pub fn run(
     runs: &Runs,
     run_id: &str,
-    target: &str,
-    flags: &[String],
+    command: &Analysis,
     on_progress: impl FnMut(ScanProgress),
 ) -> Result<String, RunError> {
-    validate_target(target)?;
+    if command.blocked() {
+        return Err(RunError::Blocked(command.block_reasons()));
+    }
 
+    // Our capture flags go first; policy guarantees the user's argv contains
+    // no output options or --stats-every to contradict them.
     let mut cmd = Command::new("nmap");
-    cmd.args(flags)
-        .args(["--stats-every", "1s", "-oX", "-"])
-        .arg(target)
+    cmd.args(["--stats-every", "1s", "-oX", "-"])
+        .args(command.argv())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(unix)]
@@ -369,20 +378,15 @@ mod tests {
     // Live checks against a real nmap (not run in CI):
     //   cargo test --lib runner -- --ignored
     // A deliberately slowed localhost scan, so nmap's 1s stats timer fires.
-    fn slow_flags() -> Vec<String> {
-        ["-sT", "-p", "1-1500", "--scan-delay", "4ms"]
-            .map(String::from)
-            .to_vec()
+    fn slow_scan() -> Analysis {
+        crate::cmdline::analyze_text("-sT -p 1-1500 --scan-delay 4ms localhost")
     }
 
     #[test]
     #[ignore = "needs nmap installed"]
     fn live_scan_streams_progress_through_the_pty() {
         let mut seen = Vec::new();
-        let xml = run(&Runs::default(), "live", "localhost", &slow_flags(), |p| {
-            seen.push(p)
-        })
-        .unwrap();
+        let xml = run(&Runs::default(), "live", &slow_scan(), |p| seen.push(p)).unwrap();
         assert!(crate::scan::parse_nmap_xml(&xml).is_ok());
         assert!(seen.len() >= 3, "expected progress, got {seen:?}");
         assert!(seen.iter().any(|p| p.remaining_secs.is_some()));
@@ -394,7 +398,7 @@ mod tests {
         let runs = std::sync::Arc::new(Runs::default());
         let r2 = runs.clone();
         let started = std::time::Instant::now();
-        let handle = std::thread::spawn(move || run(&r2, "c", "localhost", &slow_flags(), |_| {}));
+        let handle = std::thread::spawn(move || run(&r2, "c", &slow_scan(), |_| {}));
         std::thread::sleep(std::time::Duration::from_millis(1500));
         assert!(runs.cancel("c"));
         assert!(matches!(handle.join().unwrap(), Err(RunError::Cancelled)));
@@ -403,8 +407,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_flag_like_target_before_spawning() {
-        let err = run(&Runs::default(), "r1", "-iL /etc/passwd", &[], |_| {}).unwrap_err();
-        assert!(matches!(err, RunError::Scan(ScanError::InvalidTarget(_))));
+    fn refuses_a_blocked_command_before_spawning() {
+        let blocked = crate::cmdline::analyze_text("-oX /tmp/out.xml localhost");
+        let err = run(&Runs::default(), "r1", &blocked, |_| {}).unwrap_err();
+        assert!(matches!(err, RunError::Blocked(ref m) if m.contains("output file")));
     }
 }
