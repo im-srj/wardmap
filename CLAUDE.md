@@ -404,3 +404,24 @@ Next: M11 — privileged scans (pkexec/osascript/UAC per scan), then M12.
   `sudo nmap …` → Run → password dialog → results. Also try Cancel on the
   dialog ("authentication cancelled") and Cancel mid-scan (stops the root nmap).
 Next: M12 — profiles, re-run from history, import/export.
+
+### M12 — Profiles, re-run, import/export, run queue DONE (backend tested; GUI check pending)
+- Profiles: 8 built-ins (`presets.ts`) + saved ones (SQLite `profiles`, options
+  only — never targets). Picking a profile now REPLACES all options (target
+  kept). Save / update / delete in `ProfilePicker`; Zenmap `scan_profile.usp`
+  import (`profiles.rs`).
+- History: new `scans.command` column (migrated in place, verified on the real
+  DB); rebuilt from nmap's args for imported/old scans. Saved-scan toolbar
+  (`ScanActions`): Re-run (loads the command; result gets a "changed since…"
+  banner + diff link), Copy command, Export (XML/JSON/CSV/-oN-/-oG-like/HTML,
+  `export.rs`). Sidebar ↑ imports nmap XML files (deduped, dated by nmap start).
+- File dialogs run in the BACKEND (`tauri-plugin-dialog` Rust API) — the
+  webview never passes a path; no capability entries needed.
+- Up to 2 concurrent scans, rest queued; `run_nmap_scan` returns
+  `{scanId, result}`. `examples/export_demo.rs` compares exports with nmap's.
+- 80 Rust tests green (+17); fmt + clippy clean; tsc+vite clean.
+- GUI check: save a profile and reload it; Import from Zenmap; open a saved
+  scan → Export each format, Re-run → Run → "changed since…" banner; start 3
+  scans → third shows "queued" in the sidebar; import an `nmap -oX` file.
+Next: M7 — packaging (incl. macOS/Windows elevation from M11).
+
