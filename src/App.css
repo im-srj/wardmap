@@ -443,29 +443,43 @@ body {
 .nse__toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
   margin-right: 0.3rem;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  background: var(--panel-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
 }
-.nse__toggle:hover,
+.nse__toggle:hover {
+  border-color: #3a537a;
+}
+.nse__toggle--open {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.08);
+}
 .nse__toggle:focus-visible {
-  color: var(--text);
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .nse__caret {
   width: 0.8em;
+  color: var(--accent);
 }
 .nse__count {
-  text-transform: none;
-  letter-spacing: 0;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
   color: var(--accent);
+  font-size: 0.74rem;
+}
+.nse__hint {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 .nse-chip {
   display: inline-flex;
