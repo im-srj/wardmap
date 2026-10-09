@@ -36,29 +36,32 @@ can type or paste any nmap command and run it.**
 
 ---
 
-## M8 — Scan engine: async, progress, cancel  *(foundation; do first)*
+## M8 — Scan engine: async, progress, cancel  *(DONE 2026-10-09)*
 
-A full option set makes long scans normal, so this has to come first.
+What shipped, and where it differs from the original plan:
 
-- Spawn with `tokio::process` / a worker thread instead of `.output()`. A Tauri
-  command `start_scan(argv) -> scan_id` returns immediately.
-- **Progress:** add `--stats-every 2s`. nmap then writes `<taskbegin>`,
-  `<taskprogress percent= remaining= task=>` and `<taskend>` into the XML
-  stream. Read stdout incrementally with a **`quick-xml` streaming reader**
-  (convention: no string matching) and emit Tauri events
-  `scan://progress {id, task, percent, etc}`. Buffer the full bytes for the
-  final `roxmltree` parse, unchanged from today.
-- **Cancel:** `cancel_scan(id)` kills the child. Keep any partial XML if it
-  parses, and mark the scan `cancelled`.
-- DB: `scans.status` (`running|completed|cancelled|failed`) + `argv_json`.
-  Store stderr warnings (e.g. "QUITTING!", "requires root").
-- UI: progress bar + current phase ("SYN Stealth Scan 43%, ~1m left"),
-  Cancel button, and a scan keeps running when you switch views.
-- **nmap preflight:** on startup, `nmap --version` → version + compiled
-  features (or a "nmap not found" onboarding screen with an install link for
-  each OS). Packaging (M7) needs this too.
-- Tests: feed a recorded `--stats-every` XML stream in chunks and assert the
-  progress events. Cancel test uses a fake child (no nmap needed).
+- `run_nmap_scan` is now an **async command + `spawn_blocking`**,
+  streaming progress over a Tauri v2 `Channel` (not global events) and
+  resolving with the result. `cancel_scan(run_id)` kills the child. Running
+  nmaps are killed on app exit.
+- **Finding: nmap only emits progress when it has a controlling terminal.**
+  With a piped stdin, `--stats-every` silently produces nothing (verified
+  on 7.94, both XML `<taskprogress>` and normal-output "Stats:" lines). So
+  on Unix nmap gets a **pseudo-terminal** as stdin and controlling tty
+  (`openpty` + `setsid` + `TIOCSCTTY`, `runner.rs`). Stdout stays our XML
+  pipe, so the XML is unchanged apart from the progress elements. If the pty
+  fails, the scan runs without progress. **Windows is unverified**, and may
+  need ConPTY or may get no progress; check this in M7.
+- Progress is read with a `quick-xml` streaming reader over a tee of stdout.
+  The full bytes still go through the `roxmltree` parser.
+- **Dropped (YAGNI for now):** saving partial XML of a cancelled scan (a
+  killed nmap leaves unclosed XML, so it would need a repair pass), the
+  `scans.status` column (only completed scans are stored), and `argv_json`
+  (moves to M10/M12, where re-run needs it).
+- nmap preflight: `nmap_version` on startup → version in the sidebar, or an
+  install-instructions card.
+- **Reserved for M10's policy layer:** `--stats-every` (we set it), alongside
+  the output flags.
 
 ## M9 — Full option catalogue + visual builder
 
