@@ -299,3 +299,20 @@ Next: M7 — packaging (Homebrew / AppImage-or-apt / winget; real icon).
   (no runtime fetch — keeps the no-phone-home rule). Icons hand-rolled in
   `components/Icon.tsx` (no icon lib). Window default 1280×840, min 900×600.
 
+### M5 rework — exposure map replaces force graph (2026-10-09; GUI check pending)
+The M5 star graph ("scan" → hosts) conveyed nothing the table didn't, and its
+edges implied a topology we can't see (real paths need `--traceroute` = root).
+Replaced by `components/ExposureMap.tsx` + `src/exposure.ts`:
+- Hosts grouped by /24 subnet as cards (no edges; footnote says why), each with
+  a device-type GUESS (router/printer/Windows/NAS/DB/…, from services + MAC
+  vendor; always labelled "guess" with its reason) and colour-coded service
+  pills. Click → detail panel: services grouped by purpose (remote access,
+  databases, file sharing…), plain-language note per service, review /
+  unencrypted / TLS tags, cert summary. Filters: "Needs attention" + category.
+- `exposure.ts` = offline catalogue (~55 services by nmap name, port fallback).
+  Notes describe the KIND of service only — never version-specific vuln claims.
+- Backend: `Service` now carries `tunnel` ("ssl") and `method` ("probed"/
+  "table"). Needed so -sV's HTTPS (`http`+`ssl`) isn't flagged unencrypted, and
+  so port-table guesses are shown as unconfirmed. Test added (27 green).
+Possible follow-up: "changes since last scan" overlay on the map (ties to M4).
+

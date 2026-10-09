@@ -112,6 +112,92 @@ const PATHS = {
   ),
   list: <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />,
   arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  router: (
+    <>
+      <rect x="3" y="13" width="18" height="7" rx="2" />
+      <path d="M7 16.5h.01M11 16.5h.01M15 13V9M9.5 7.5a3.5 3.5 0 0 1 5 0M7.5 5.5a6.5 6.5 0 0 1 9 0" />
+    </>
+  ),
+  printer: (
+    <>
+      <path d="M7 9V3h10v6" />
+      <rect x="3" y="9" width="18" height="8" rx="2" />
+      <path d="M7 14h10v7H7z" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
+  laptop: (
+    <>
+      <rect x="5" y="5" width="14" height="10" rx="1.5" />
+      <path d="M2.5 19h19l-2-4h-15z" />
+    </>
+  ),
+  database: (
+    <>
+      <ellipse cx="12" cy="5.5" rx="8" ry="2.5" />
+      <path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13" />
+      <path d="M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5" />
+    </>
+  ),
+  hardDrive: (
+    <>
+      <rect x="3" y="12" width="18" height="8" rx="2" />
+      <path d="M3 14 6 5h12l3 9M7 16h.01M11 16h.01" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3.5 6.5 8.5 7 8.5-7" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+    </>
+  ),
+  camera: (
+    <>
+      <rect x="2.5" y="7" width="13" height="10" rx="2" />
+      <path d="m15.5 11 6-3.5v9l-6-3.5" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m10.8 12.2 9.2-9.2M16 7l3 3M18 5l2 2" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+    </>
+  ),
+  unlock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+      <path d="M8 10.5V7a4 4 0 0 1 7.7-1.5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -4,7 +4,7 @@ import { PRESETS, buildCommand, buildFlags, type Preset } from "./presets";
 import { useTheme } from "./themes";
 import { ScanForm } from "./components/ScanForm";
 import { ResultStats, ResultsTable } from "./components/ResultsTable";
-import { TopologyView } from "./components/TopologyView";
+import { ExposureMap } from "./components/ExposureMap";
 import { HistoryList, relativeTime } from "./components/HistoryList";
 import { CompareBar } from "./components/CompareBar";
 import { DiffView } from "./components/DiffView";
@@ -292,9 +292,7 @@ function App() {
                   {resultMode === "table" ? (
                     <ResultsTable result={view.result} />
                   ) : (
-                    <div className="card topo-card">
-                      <TopologyView result={view.result} />
-                    </div>
+                    <ExposureMap result={view.result} />
                   )}
                 </>
               )}
