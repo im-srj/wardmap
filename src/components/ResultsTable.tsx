@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { Host, ScanResult } from "../types";
+import { Fragment, useMemo, useState } from "react";
+import type { Host, ScanResult, ScriptOutput } from "../types";
 
 interface Row {
   host: string;
@@ -8,9 +8,10 @@ interface Row {
   protocol: string;
   state: string;
   service: string;
+  scripts: ScriptOutput[];
 }
 
-type SortKey = keyof Row;
+type SortKey = Exclude<keyof Row, "scripts">;
 type Dir = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
@@ -48,6 +49,7 @@ function toRows(result: ScanResult): Row[] {
         protocol: p.protocol,
         state: p.state,
         service: serviceLabel(p.service),
+        scripts: p.scripts,
       });
     }
   }
@@ -57,6 +59,7 @@ function toRows(result: ScanResult): Row[] {
 export function ResultsTable({ result }: { result: ScanResult }) {
   const [sortKey, setSortKey] = useState<SortKey>("portid");
   const [dir, setDir] = useState<Dir>("asc");
+  const [openRow, setOpenRow] = useState<string | null>(null);
 
   const rows = useMemo(() => toRows(result), [result]);
 
@@ -86,6 +89,7 @@ export function ResultsTable({ result }: { result: ScanResult }) {
 
   const openCount = rows.filter((r) => r.state === "open").length;
   const s = result.summary;
+  const hostScripts = result.hosts.filter((h) => h.scripts.length > 0);
 
   if (rows.length === 0) {
     return (
@@ -139,20 +143,68 @@ export function ResultsTable({ result }: { result: ScanResult }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r, i) => (
-            <tr key={`${r.host}-${r.protocol}-${r.portid}-${i}`}>
-              <td className="mono">{r.host}</td>
-              <td className="muted">{r.hostname ?? "—"}</td>
-              <td className="mono">{r.portid}</td>
-              <td className="muted">{r.protocol}</td>
-              <td>
-                <span className={`state state--${r.state}`}>{r.state}</span>
-              </td>
-              <td>{r.service || <span className="muted">—</span>}</td>
-            </tr>
-          ))}
+          {sorted.map((r) => {
+            const key = `${r.host}-${r.protocol}-${r.portid}`;
+            const isOpen = openRow === key;
+            return (
+              <Fragment key={key}>
+                <tr>
+                  <td className="mono">{r.host}</td>
+                  <td className="muted">{r.hostname ?? "—"}</td>
+                  <td className="mono">{r.portid}</td>
+                  <td className="muted">{r.protocol}</td>
+                  <td>
+                    <span className={`state state--${r.state}`}>{r.state}</span>
+                  </td>
+                  <td>
+                    {r.service || <span className="muted">—</span>}
+                    {r.scripts.length > 0 && (
+                      <button
+                        type="button"
+                        className="script-toggle"
+                        onClick={() => setOpenRow(isOpen ? null : key)}
+                        aria-expanded={isOpen}
+                      >
+                        {isOpen ? "▾" : "▸"} {r.scripts.length} script
+                        {r.scripts.length === 1 ? "" : "s"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr className="script-row">
+                    <td colSpan={COLUMNS.length}>
+                      <ScriptOutputs scripts={r.scripts} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
+
+      {hostScripts.map((h) => (
+        <div key={hostLabel(h)} className="host-scripts">
+          <div className="host-scripts__title">
+            Host scripts · <span className="mono">{hostLabel(h)}</span>
+          </div>
+          <ScriptOutputs scripts={h.scripts} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScriptOutputs({ scripts }: { scripts: ScriptOutput[] }) {
+  return (
+    <div className="script-outputs">
+      {scripts.map((sc, i) => (
+        <div key={`${sc.id}-${i}`} className="script-output">
+          <div className="script-output__id mono">{sc.id}</div>
+          <pre className="script-output__text">{sc.output.trim()}</pre>
+        </div>
+      ))}
     </div>
   );
 }

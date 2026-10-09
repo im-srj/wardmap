@@ -61,6 +61,8 @@ pub struct Host {
     pub hostnames: Vec<String>,
     /// Ports nmap reported individually (the `<extraports>` summary is skipped).
     pub ports: Vec<Port>,
+    /// Host-level NSE output (`<hostscript>`), e.g. smb-os-discovery.
+    pub scripts: Vec<ScriptOutput>,
 }
 
 /// One address of a host.
@@ -86,6 +88,10 @@ pub struct Port {
     pub reason: Option<String>,
     /// Service info, present when nmap identified one.
     pub service: Option<Service>,
+    /// NSE script output for this port, in nmap's order.
+    pub scripts: Vec<ScriptOutput>,
+    /// TLS certificate, when the `ssl-cert` script ran against this port.
+    pub cert: Option<TlsCert>,
 }
 
 /// Service identification for a port.
@@ -96,6 +102,28 @@ pub struct Service {
     pub product: Option<String>,
     pub version: Option<String>,
     pub extrainfo: Option<String>,
+}
+
+/// One NSE script's result: its id and nmap's human-readable output.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptOutput {
+    pub id: String,
+    pub output: String,
+}
+
+/// The fields of an `ssl-cert` result we display and diff on. Read from the
+/// script's structured `<elem>`/`<table>` children, not its text output.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TlsCert {
+    /// SHA-1 fingerprint (lowercase hex) — the cert's identity for diffing.
+    pub sha1: String,
+    pub subject_cn: Option<String>,
+    pub issuer_cn: Option<String>,
+    /// Validity bounds as nmap prints them (ISO 8601, e.g. "2035-09-20T05:06:42").
+    pub not_before: Option<String>,
+    pub not_after: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -219,9 +247,11 @@ fn parse_host(node: Node) -> Result<Host, ParseError> {
     let mut addresses = Vec::new();
     let mut hostnames: Vec<String> = Vec::new();
     let mut ports = Vec::new();
+    let mut scripts = Vec::new();
 
     for child in node.children().filter(|n| n.is_element()) {
         match child.tag_name().name() {
+            "hostscript" => scripts.extend(script_children(child).map(parse_script)),
             "status" => {
                 state = attr(child, "state").unwrap_or_default();
                 reason = attr(child, "reason");
@@ -265,6 +295,7 @@ fn parse_host(node: Node) -> Result<Host, ParseError> {
         addresses,
         hostnames,
         ports,
+        scripts,
     })
 }
 
@@ -278,6 +309,8 @@ fn parse_port(node: Node) -> Result<Port, ParseError> {
     let mut state = String::new();
     let mut reason = None;
     let mut service = None;
+    let mut scripts = Vec::new();
+    let mut cert = None;
 
     for child in node.children().filter(|n| n.is_element()) {
         match child.tag_name().name() {
@@ -293,6 +326,12 @@ fn parse_port(node: Node) -> Result<Port, ParseError> {
                     extrainfo: attr(child, "extrainfo"),
                 });
             }
+            "script" => {
+                if child.attribute("id") == Some("ssl-cert") {
+                    cert = parse_cert(child);
+                }
+                scripts.push(parse_script(child));
+            }
             _ => {}
         }
     }
@@ -303,6 +342,48 @@ fn parse_port(node: Node) -> Result<Port, ParseError> {
         state,
         reason,
         service,
+        scripts,
+        cert,
+    })
+}
+
+fn script_children<'a>(node: Node<'a>) -> impl Iterator<Item = Node<'a>> {
+    node.children()
+        .filter(|n| n.is_element() && n.tag_name().name() == "script")
+}
+
+fn parse_script(node: Node) -> ScriptOutput {
+    ScriptOutput {
+        id: attr(node, "id").unwrap_or_default(),
+        output: attr(node, "output").unwrap_or_default(),
+    }
+}
+
+/// Extract a [`TlsCert`] from an `ssl-cert` `<script>` node. Returns None if
+/// the structured output has no SHA-1 (e.g. the script errored).
+fn parse_cert(node: Node) -> Option<TlsCert> {
+    // Direct `<elem key=..>` child of `parent`.
+    fn elem(parent: Node, key: &str) -> Option<String> {
+        parent
+            .children()
+            .find(|n| n.has_tag_name("elem") && n.attribute("key") == Some(key))
+            .and_then(|n| n.text())
+            .map(|t| t.trim().to_string())
+    }
+    // Direct `<table key=..>` child of `parent`.
+    fn table<'a>(parent: Node<'a>, key: &str) -> Option<Node<'a>> {
+        parent
+            .children()
+            .find(|n| n.has_tag_name("table") && n.attribute("key") == Some(key))
+    }
+
+    let validity = table(node, "validity");
+    Some(TlsCert {
+        sha1: elem(node, "sha1")?.to_lowercase(),
+        subject_cn: table(node, "subject").and_then(|t| elem(t, "commonName")),
+        issuer_cn: table(node, "issuer").and_then(|t| elem(t, "commonName")),
+        not_before: validity.and_then(|t| elem(t, "notBefore")),
+        not_after: validity.and_then(|t| elem(t, "notAfter")),
     })
 }
 
@@ -404,6 +485,9 @@ mod tests {
 
     const LOCALHOST_CONNECT: &str = include_str!("../tests/fixtures/localhost-connect.xml");
     const MULTI_HOST_VERSION: &str = include_str!("../tests/fixtures/multi-host-version.xml");
+    // Real `--script=ssl-cert,http-title` scan of localhost (hostname redacted
+    // to "devbox"; PEM body and RSA modulus removed for size).
+    const LOCALHOST_SCRIPTS: &str = include_str!("../tests/fixtures/localhost-scripts.xml");
 
     #[test]
     fn parses_localhost_connect_scan() {
@@ -469,6 +553,57 @@ mod tests {
 
         let s = r.summary.unwrap();
         assert_eq!((s.hosts_up, s.hosts_down, s.hosts_total), (1, 1, 2));
+    }
+
+    #[test]
+    fn parses_script_output_and_ssl_cert() {
+        let r = parse_nmap_xml(LOCALHOST_SCRIPTS).expect("should parse");
+        let h = &r.hosts[0];
+        assert!(h.scripts.is_empty());
+
+        let p80 = h.ports.iter().find(|p| p.portid == 80).unwrap();
+        assert_eq!(p80.scripts.len(), 1);
+        assert_eq!(p80.scripts[0].id, "http-title");
+        assert_eq!(
+            p80.scripts[0].output,
+            "Apache2 Ubuntu Default Page: It works"
+        );
+        assert!(p80.cert.is_none());
+
+        // Open port with no script output.
+        let p3389 = h.ports.iter().find(|p| p.portid == 3389).unwrap();
+        assert!(p3389.scripts.is_empty());
+        assert!(p3389.cert.is_none());
+
+        let p5432 = h.ports.iter().find(|p| p.portid == 5432).unwrap();
+        assert_eq!(p5432.scripts[0].id, "ssl-cert");
+        assert!(p5432.scripts[0]
+            .output
+            .starts_with("Subject: commonName=devbox\n"));
+        let cert = p5432.cert.as_ref().expect("cert parsed");
+        assert_eq!(cert.sha1, "701c51f46e03bbb8d2995a146066280a96a67da2");
+        assert_eq!(cert.subject_cn.as_deref(), Some("devbox"));
+        assert_eq!(cert.issuer_cn.as_deref(), Some("devbox"));
+        assert_eq!(cert.not_before.as_deref(), Some("2025-09-22T05:06:42"));
+        assert_eq!(cert.not_after.as_deref(), Some("2035-09-20T05:06:42"));
+    }
+
+    #[test]
+    fn parses_hostscript_and_tolerates_ssl_cert_without_sha1() {
+        let xml = r#"<?xml version="1.0"?><nmaprun><host><status state="up"/>
+            <ports><port protocol="tcp" portid="443"><state state="open"/>
+              <script id="ssl-cert" output="ERROR: Script execution failed"/>
+            </port></ports>
+            <hostscript><script id="smb-os-discovery" output="OS: Windows 10"/></hostscript>
+            </host></nmaprun>"#;
+        let r = parse_nmap_xml(xml).expect("should parse");
+        let h = &r.hosts[0];
+        assert_eq!(h.scripts.len(), 1);
+        assert_eq!(h.scripts[0].id, "smb-os-discovery");
+        assert_eq!(h.scripts[0].output, "OS: Windows 10");
+        // Script output is kept, but no cert is invented from a failed run.
+        assert_eq!(h.ports[0].scripts.len(), 1);
+        assert!(h.ports[0].cert.is_none());
     }
 
     #[test]

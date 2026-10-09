@@ -8,12 +8,27 @@ export interface Service {
   extrainfo: string | null;
 }
 
+export interface ScriptOutput {
+  id: string;
+  output: string;
+}
+
+export interface TlsCert {
+  sha1: string;
+  subjectCn: string | null;
+  issuerCn: string | null;
+  notBefore: string | null;
+  notAfter: string | null;
+}
+
 export interface Port {
   protocol: string;
   portid: number;
   state: string;
   reason: string | null;
   service: Service | null;
+  scripts: ScriptOutput[];
+  cert: TlsCert | null;
 }
 
 export interface Address {
@@ -28,6 +43,7 @@ export interface Host {
   addresses: Address[];
   hostnames: string[];
   ports: Port[];
+  scripts: ScriptOutput[]; // <hostscript> output
 }
 
 export interface RunStats {

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.94SVN scan initiated Fri Oct  9 14:37:57 2026 as: nmap -p 80,3389,5432 -&#45;script=ssl-cert,http-title -oX ssl.xml localhost -->
+<nmaprun scanner="nmap" args="nmap -p 80,3389,5432 -&#45;script=ssl-cert,http-title -oX ssl.xml localhost" start="1791536877" startstr="Fri Oct  9 14:37:57 2026" version="7.94SVN" xmloutputversion="1.05">
+<scaninfo type="connect" protocol="tcp" numservices="3" services="80,3389,5432"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="unknown-response" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="user"/>
+</hostnames>
+</hosthint>
+<host starttime="1791536877" endtime="1791536877"><status state="up" reason="syn-ack" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="user"/>
+<hostname name="localhost" type="PTR"/>
+</hostnames>
+<ports><port protocol="tcp" portid="80"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="http" method="table" conf="3"/><script id="http-title" output="Apache2 Ubuntu Default Page: It works"><elem key="title">Apache2 Ubuntu Default Page: It works</elem>
+</script></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="ms-wbt-server" method="table" conf="3"/></port>
+<port protocol="tcp" portid="5432"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="postgresql" method="table" conf="3"/><script id="ssl-cert" output="Subject: commonName=devbox&#xa;Subject Alternative Name: DNS:devbox&#xa;Issuer: commonName=devbox&#xa;Public Key type: rsa&#xa;Public Key bits: 2048&#xa;Signature Algorithm: sha256WithRSAEncryption&#xa;Not valid before: 2025-09-22T05:06:42&#xa;Not valid after:  2035-09-20T05:06:42&#xa;MD5:   defc:972d:06b3:974d:8073:dfea:9af1:1ebe&#xa;SHA-1: 701c:51f4:6e03:bbb8:d299:5a14:6066:280a:96a6:7da2"><table key="subject">
+<elem key="commonName">devbox</elem>
+</table>
+<table key="issuer">
+<elem key="commonName">devbox</elem>
+</table>
+<table key="pubkey">
+<elem key="type">rsa</elem>
+<elem key="bits">2048</elem>
+<elem key="exponent">65537</elem>
+</table>
+<table key="extensions">
+<table>
+<elem key="name">X509v3 Basic Constraints</elem>
+<elem key="value">CA:FALSE</elem>
+</table>
+<table>
+<elem key="name">X509v3 Subject Alternative Name</elem>
+<elem key="value">DNS:devbox</elem>
+</table>
+<table>
+<elem key="name">X509v3 Subject Key Identifier</elem>
+<elem key="value">6A:47:77:D0:D9:46:3A:57:7F:73:43:A6:20:FE:44:45:76:59:A8:A4</elem>
+</table>
+</table>
+<elem key="sig_algo">sha256WithRSAEncryption</elem>
+<table key="validity">
+<elem key="notBefore">2025-09-22T05:06:42</elem>
+<elem key="notAfter">2035-09-20T05:06:42</elem>
+</table>
+<elem key="md5">defc972d06b3974d8073dfea9af11ebe</elem>
+<elem key="sha1">701c51f46e03bbb8d2995a146066280a96a67da2</elem>
+</script></port>
+</ports>
+<times srtt="57" rttvar="2131" to="100000"/>
+</host>
+<runstats><finished time="1791536877" timestr="Fri Oct  9 14:37:57 2026" summary="Nmap done at Fri Oct  9 14:37:57 2026; 1 IP address (1 host up) scanned in 0.09 seconds" elapsed="0.09" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>
