@@ -15,6 +15,9 @@ interface Props {
   onItemsChange: (items: CmdItem[]) => void;
   /** The full command line, as it will run. */
   command: string;
+  /** Run nmap as root (pkexec asks for the password each scan). */
+  elevate: boolean;
+  onElevateChange: (on: boolean) => void;
   issues: CmdIssue[];
   /** The command line was edited by hand. */
   onEditCommand: (text: string) => void;
@@ -41,6 +44,8 @@ export function ScanForm({
   items,
   onItemsChange,
   command,
+  elevate,
+  onElevateChange,
   issues,
   onEditCommand,
   canRun,
@@ -105,6 +110,21 @@ export function ScanForm({
           )}
         </button>
       </div>
+
+      <label className="elevate">
+        <input
+          type="checkbox"
+          checked={elevate}
+          onChange={(e) => onElevateChange(e.target.checked)}
+        />
+        <Icon name={elevate ? "unlock" : "lock"} size={14} />
+        <span className="elevate__label">Run as root</span>
+        <span className="elevate__hint">
+          {elevate
+            ? "you'll be asked for your password when the scan starts"
+            : "needed for SYN, UDP, OS detection and other raw-packet options"}
+        </span>
+      </label>
 
       {collapsible && (
         <button
