@@ -5,18 +5,20 @@
 //! pure function with thorough unit tests.
 //!
 //! What we surface: hosts added/removed, host up/down changes, ports
-//! opened/closed, and service (name/product/version) changes. Only *changes*
-//! appear in the result; unchanged items are omitted.
+//! opened/closed, service (name/product/version) changes, and TLS certs
+//! (from `ssl-cert`) that changed or were newly seen. Only *changes* appear
+//! in the result; unchanged items are omitted.
 //!
-//! Not yet handled: TLS cert changes. nmap exposes certs via NSE `<script>`
-//! output, which the parser does not read yet — deferred until NSE support
-//! lands in M6.
+//! Certs are compared by SHA-1 fingerprint. A cert present in the old scan
+//! but absent from the new one is deliberately NOT reported: that usually
+//! just means `ssl-cert` wasn't run the second time, and claiming "cert
+//! removed" would be a wrong conclusion.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
-use crate::scan::{Host, Port, ScanResult};
+use crate::scan::{Host, Port, ScanResult, TlsCert};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +47,8 @@ pub struct HostDiff {
 pub struct PortDiff {
     pub portid: u16,
     pub protocol: String,
-    /// "opened", "closed", or "service-changed".
+    /// "opened", "closed", "service-changed", "cert-changed", or "cert-new".
+    /// A port can appear more than once (e.g. service-changed + cert-changed).
     pub kind: String,
     /// Human-readable detail, e.g. "closed → open" or "OpenSSH 8.9 → 9.0".
     pub detail: String,
@@ -94,6 +97,39 @@ fn label_or(p: &Port, fallback: &str) -> String {
     }
 }
 
+/// "CN=example.com, sha1 701c51f4…, expires 2035-09-20".
+fn cert_label(c: &TlsCert) -> String {
+    let mut parts = vec![format!("CN={}", c.subject_cn.as_deref().unwrap_or("?"))];
+    parts.push(format!(
+        "sha1 {}…",
+        c.sha1.chars().take(8).collect::<String>()
+    ));
+    if let Some(exp) = &c.not_after {
+        parts.push(format!("expires {}", exp.split('T').next().unwrap_or(exp)));
+    }
+    parts.join(", ")
+}
+
+/// Cert change for one open port. `old` is None when the port wasn't open
+/// (or didn't exist) in the old scan.
+fn diff_cert(old: Option<&Port>, new: &Port) -> Option<PortDiff> {
+    let n = new.cert.as_ref()?;
+    let (kind, detail) = match old.and_then(|o| o.cert.as_ref()) {
+        Some(o) if o.sha1 == n.sha1 => return None,
+        Some(o) => (
+            "cert-changed",
+            format!("{} → {}", cert_label(o), cert_label(n)),
+        ),
+        None => ("cert-new", cert_label(n)),
+    };
+    Some(PortDiff {
+        portid: new.portid,
+        protocol: new.protocol.clone(),
+        kind: kind.to_string(),
+        detail,
+    })
+}
+
 fn index_hosts(result: &ScanResult) -> BTreeMap<String, &Host> {
     result.hosts.iter().map(|h| (host_key(h), h)).collect()
 }
@@ -138,12 +174,21 @@ pub fn diff_scans(old: &ScanResult, new: &ScanResult) -> ScanDiff {
                 // Previously-open ports are now gone.
                 ports: open_ports_as(o, "closed"),
             }),
-            (None, Some(n)) => hosts.push(HostDiff {
-                host: key.clone(),
-                status: "added".to_string(),
-                state_change: None,
-                ports: open_ports_as(n, "opened"),
-            }),
+            (None, Some(n)) => {
+                let mut ports = open_ports_as(n, "opened");
+                ports.extend(
+                    n.ports
+                        .iter()
+                        .filter(|p| is_open(p))
+                        .filter_map(|p| diff_cert(None, p)),
+                );
+                hosts.push(HostDiff {
+                    host: key.clone(),
+                    status: "added".to_string(),
+                    state_change: None,
+                    ports,
+                });
+            }
             (None, None) => unreachable!("key came from one of the maps"),
         }
     }
@@ -188,6 +233,7 @@ fn diff_ports(old: &Host, new: &Host) -> Vec<PortDiff> {
                 kind: "opened".to_string(),
                 detail: label_or(np, "open"),
             });
+            diffs.extend(diff_cert(None, np));
         } else if old_open && !new_open {
             let op = o.unwrap();
             diffs.push(PortDiff {
@@ -214,6 +260,7 @@ fn diff_ports(old: &Host, new: &Host) -> Vec<PortDiff> {
                     ),
                 });
             }
+            diffs.extend(diff_cert(Some(op), np));
         }
         // both closed/absent → not a change
     }
@@ -331,6 +378,92 @@ mod tests {
         assert_eq!(find_host(&d, "10.0.0.3").status, "added");
         // 10.0.0.1 unchanged → absent.
         assert!(d.hosts.iter().all(|h| h.host != "10.0.0.1"));
+    }
+
+    // One host (10.0.0.1) with 443 open; `cert` = Some((sha1, cn, notAfter))
+    // adds an ssl-cert script result shaped like nmap's real output.
+    fn cert_scan(host: &str, cert: Option<(&str, &str, &str)>) -> ScanResult {
+        let script = cert.map_or(String::new(), |(sha1, cn, not_after)| {
+            format!(
+                r#"<script id="ssl-cert" output="Subject: commonName={cn}">
+                <table key="subject"><elem key="commonName">{cn}</elem></table>
+                <table key="validity"><elem key="notAfter">{not_after}</elem></table>
+                <elem key="sha1">{sha1}</elem></script>"#
+            )
+        });
+        parse_nmap_xml(&format!(
+            r#"<nmaprun><host><status state="up"/><address addr="{host}" addrtype="ipv4"/>
+            <ports><port protocol="tcp" portid="443"><state state="open"/>
+            <service name="https"/>{script}</port></ports></host></nmaprun>"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn same_cert_is_unchanged() {
+        let c = Some(("aaaa1111bbbb", "example.com", "2030-01-01T00:00:00"));
+        let d = diff_scans(&cert_scan("10.0.0.1", c), &cert_scan("10.0.0.1", c));
+        assert!(d.unchanged);
+    }
+
+    #[test]
+    fn detects_changed_cert_by_fingerprint() {
+        let old = cert_scan(
+            "10.0.0.1",
+            Some(("aaaa1111bbbb", "example.com", "2025-01-01T00:00:00")),
+        );
+        // Same CN, renewed cert: only the fingerprint/expiry differ.
+        let new = cert_scan(
+            "10.0.0.1",
+            Some(("cccc2222dddd", "example.com", "2030-01-01T00:00:00")),
+        );
+        let d = diff_scans(&old, &new);
+        let p = find_port(find_host(&d, "10.0.0.1"), 443);
+        assert_eq!(p.kind, "cert-changed");
+        assert_eq!(
+            p.detail,
+            "CN=example.com, sha1 aaaa1111…, expires 2025-01-01 → \
+             CN=example.com, sha1 cccc2222…, expires 2030-01-01"
+        );
+    }
+
+    #[test]
+    fn detects_newly_seen_cert() {
+        let old = cert_scan("10.0.0.1", None);
+        let new = cert_scan(
+            "10.0.0.1",
+            Some(("aaaa1111bbbb", "example.com", "2030-01-01T00:00:00")),
+        );
+        let d = diff_scans(&old, &new);
+        let p = find_port(find_host(&d, "10.0.0.1"), 443);
+        assert_eq!(p.kind, "cert-new");
+        assert!(p.detail.starts_with("CN=example.com"));
+    }
+
+    #[test]
+    fn missing_cert_in_new_scan_is_not_reported() {
+        // ssl-cert simply not run the second time ≠ the cert went away.
+        let old = cert_scan(
+            "10.0.0.1",
+            Some(("aaaa1111bbbb", "example.com", "2030-01-01T00:00:00")),
+        );
+        let d = diff_scans(&old, &cert_scan("10.0.0.1", None));
+        assert!(d.unchanged);
+    }
+
+    #[test]
+    fn added_host_reports_open_port_and_its_cert() {
+        let old = cert_scan("10.0.0.1", None);
+        let mut new = cert_scan(
+            "10.0.0.2",
+            Some(("aaaa1111bbbb", "example.com", "2030-01-01T00:00:00")),
+        );
+        new.hosts.extend(old.hosts.clone());
+        let d = diff_scans(&old, &new);
+        let h = find_host(&d, "10.0.0.2");
+        assert_eq!(h.status, "added");
+        let kinds: Vec<&str> = h.ports.iter().map(|p| p.kind.as_str()).collect();
+        assert_eq!(kinds, ["opened", "cert-new"]);
     }
 
     #[test]

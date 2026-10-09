@@ -8,9 +8,9 @@ interface Props {
 }
 
 function sign(kind: string): string {
-  if (kind === "opened") return "+";
+  if (kind === "opened" || kind === "cert-new") return "+";
   if (kind === "closed") return "−";
-  return "~"; // service-changed
+  return "~"; // service-changed, cert-changed
 }
 
 export function DiffView({ diff, oldLabel, newLabel, onClose }: Props) {
@@ -47,7 +47,7 @@ export function DiffView({ diff, oldLabel, newLabel, onClose }: Props) {
                 <ul className="diff-ports">
                   {h.ports.map((p) => (
                     <li
-                      key={`${p.protocol}-${p.portid}`}
+                      key={`${p.protocol}-${p.portid}-${p.kind}`}
                       className={`diff-port diff-port--${p.kind}`}
                     >
                       <span className="diff-port__sign">{sign(p.kind)}</span>

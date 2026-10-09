@@ -365,13 +365,15 @@ body {
 .diff-port__detail {
   color: var(--text);
 }
-.diff-port--opened .diff-port__sign {
+.diff-port--opened .diff-port__sign,
+.diff-port--cert-new .diff-port__sign {
   color: var(--open);
 }
 .diff-port--closed .diff-port__sign {
   color: var(--danger);
 }
-.diff-port--service-changed .diff-port__sign {
+.diff-port--service-changed .diff-port__sign,
+.diff-port--cert-changed .diff-port__sign {
   color: var(--filtered);
 }
 
