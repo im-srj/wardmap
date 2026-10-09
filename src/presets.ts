@@ -30,6 +30,14 @@ export const PRESETS: Preset[] = [
   },
 ];
 
+/** Preset flags plus the selected NSE scripts as one `--script=a,b` argument
+ *  (a single arg, so the preview shows exactly what the backend receives). */
+export function buildFlags(preset: Preset, scripts: string[]): string[] {
+  return scripts.length > 0
+    ? [...preset.flags, `--script=${scripts.join(",")}`]
+    : preset.flags;
+}
+
 /** The literal nmap command the user would type — our `-oX -` capture flag is
  *  intentionally omitted so the shown command is reproducible in a terminal. */
 export function buildCommand(flags: string[], target: string): string {

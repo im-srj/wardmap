@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { diffScans, getScan, listScans, runScan } from "./api";
-import { PRESETS, type Preset } from "./presets";
+import { PRESETS, buildFlags, type Preset } from "./presets";
 import { ScanForm } from "./components/ScanForm";
 import { ResultsTable } from "./components/ResultsTable";
 import { TopologyView } from "./components/TopologyView";
@@ -24,6 +24,7 @@ function scanLabel(s: StoredScan): string {
 function App() {
   const [target, setTarget] = useState("");
   const [preset, setPreset] = useState<Preset>(PRESETS[0]);
+  const [scripts, setScripts] = useState<string[]>([]);
   const [view, setView] = useState<View>({ kind: "idle" });
   const [history, setHistory] = useState<StoredScan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -44,7 +45,7 @@ function App() {
   async function onRun() {
     setView({ kind: "scanning", target });
     try {
-      const result = await runScan(target, preset.flags);
+      const result = await runScan(target, buildFlags(preset, scripts));
       setView({ kind: "scan", result, historical: false });
       const list = await listScans();
       setHistory(list);
@@ -116,6 +117,8 @@ function App() {
             }}
             preset={preset}
             onPresetChange={setPreset}
+            scripts={scripts}
+            onScriptsChange={setScripts}
             onRun={onRun}
             scanning={view.kind === "scanning"}
           />
