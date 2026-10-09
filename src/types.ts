@@ -75,6 +75,14 @@ export interface ScanResult {
   summary: RunStats | null;
 }
 
+/** One live progress update while a scan runs (mirrors runner::ScanProgress). */
+export interface ScanProgress {
+  /** nmap's phase name, e.g. "Connect Scan", "Service scan", "NSE". */
+  task: string;
+  percent: number;
+  remainingSecs: number | null;
+}
+
 /** A row in the saved-scan history (mirrors db::StoredScan). */
 export interface StoredScan {
   id: number;
