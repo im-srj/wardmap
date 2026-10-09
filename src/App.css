@@ -1432,6 +1432,35 @@ select {
   color: var(--text-muted);
 }
 
+/* "Run as root" toggle under the target row. */
+.elevate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.elevate input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--warn);
+  cursor: pointer;
+}
+.elevate .icon {
+  color: var(--text-faint);
+}
+.elevate input:checked ~ .icon {
+  color: var(--warn);
+}
+.elevate__label {
+  font-weight: 600;
+}
+.elevate__hint {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
 /* Option builder (shares the NSE panel's bar, chips, list and tags). */
 .nse-chip--unknown {
   background: var(--warn-soft);

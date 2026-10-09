@@ -9,7 +9,7 @@ import {
   startScan,
 } from "./api";
 import { PRESETS } from "./presets";
-import { commandText, findOption, quoteArg } from "./options";
+import { commandText, findOption, needsRoot, quoteArg } from "./options";
 import { useTheme } from "./themes";
 import { ScanForm } from "./components/ScanForm";
 import { ResultStats, ResultsTable } from "./components/ResultsTable";
@@ -71,6 +71,11 @@ function App() {
     result: CmdAnalysis;
   } | null>(null);
   const analyzeSeq = useRef(0);
+  // Run as root follows the options (any root-only option ticks it) unless
+  // the user has explicitly chosen otherwise.
+  const [elevateOverride, setElevateOverride] = useState<boolean | null>(
+    null,
+  );
   const [view, setView] = useState<View>({ kind: "idle" });
   const [run, setRun] = useState<ActiveRun | null>(null);
   const [nmap, setNmap] = useState<NmapStatus>({ kind: "checking" });
@@ -97,7 +102,8 @@ function App() {
     refreshHistory();
   }, [refreshHistory]);
 
-  const command = commandText(optItems, target);
+  const elevate = elevateOverride ?? needsRoot(optItems);
+  const command = commandText(optItems, target, elevate);
 
   // Re-check the command whenever it changes (debounced). The backend is the
   // authority on what nmap will make of it and what Cartograph won't run.
@@ -123,7 +129,11 @@ function App() {
       setAnalysis({ forCommand: text, result });
       return;
     }
-    setOptItems(result.items.filter((i) => i.kind !== "target"));
+    const items = result.items.filter((i) => i.kind !== "target");
+    setOptItems(items);
+    // Typed/removed `sudo` is an explicit choice only if it differs from
+    // what the options would pick by themselves.
+    setElevateOverride(result.sudo === needsRoot(items) ? null : result.sudo);
     setTarget(
       result.items
         .filter((i) => i.kind === "target")
@@ -138,6 +148,7 @@ function App() {
     analysis?.result.issues ?? [],
     optItems,
     target,
+    elevate,
   );
 
   useEffect(() => {
@@ -223,6 +234,7 @@ function App() {
   }
 
   function newScan() {
+    setElevateOverride(null);
     setSelectedId(null);
     setTarget("");
     setView({ kind: "idle" });
@@ -317,6 +329,10 @@ function App() {
               items={optItems}
               onItemsChange={setOptItems}
               command={command}
+              elevate={elevate}
+              onElevateChange={(on) =>
+                setElevateOverride(on === needsRoot(optItems) ? null : on)
+              }
               issues={issues}
               onEditCommand={onEditCommand}
               canRun={
@@ -496,16 +512,17 @@ function displayIssues(
   backend: CmdIssue[],
   items: CmdItem[],
   target: string,
+  elevate: boolean,
 ): CmdIssue[] {
   const out = backend.filter(
     (i) => !(target.trim() === "" && i.message === "Add at least one target."),
   );
   const defs = items.map((i) => findOption(i.name));
   const root = items.filter((_, k) => defs[k]?.root).map((i) => i.name);
-  if (root.length > 0)
+  if (root.length > 0 && !elevate)
     out.push({
       level: "warn",
-      message: `${root.join(", ")} ${root.length === 1 ? "needs" : "need"} root privileges. Cartograph runs nmap unprivileged for now, so unless nmap has raw-socket rights it will refuse ${root.length === 1 ? "it" : "them"}.`,
+      message: `${root.join(", ")} ${root.length === 1 ? "needs" : "need"} root privileges. Tick “Run as root” (you'll be asked for your password), or nmap will refuse ${root.length === 1 ? "it" : "them"}.`,
     });
   const spoof = items
     .filter((_, k) => defs[k]?.risk === "spoofing")
