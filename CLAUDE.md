@@ -136,5 +136,13 @@ app icon at COMPILE time, so icons are required even for `dev`, not just
 (source `app-icon.png` kept in repo root for regeneration; real icon design
 still deferred to M7) and wired `bundle.icon` into `tauri.conf.json`. Mobile
 (android/ios) icon dirs removed — desktop-only project. `gen/schemas` is
-gitignored. Still to confirm: `npm run tauri dev` opening an actual window
-(compile is proven; window launch is the user's visual check).
+gitignored. **M0 DONE** — `npm run tauri dev` opens the window and the
+frontend renders correctly.
+
+**Dev note / known env quirk (older GPUs):** on older NVIDIA/Intel GPUs the
+webkit2gtk WebView can render garbled scan-lines under its default DMABUF
+path. Fix is to launch with `WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri
+dev`. Confirmed needed on the GT 730 dev box; harmless/ignored on macOS and
+Windows (no webkit2gtk there). Not baked into the default script so it
+doesn't mask the var cross-platform — set it in your shell if your GPU needs
+it. Revisit for the Linux package in M7.
