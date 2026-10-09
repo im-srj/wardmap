@@ -75,6 +75,29 @@ export interface ScanResult {
   summary: RunStats | null;
 }
 
+/** One piece of an nmap command as the backend parsed it (mirrors
+ *  cmdline::Item). `tokens` is its canonical argv spelling. */
+export interface CmdItem {
+  kind: "option" | "target" | "unknown";
+  /** `-sS`, `-p`, `-T`, `-PS`, `--min-rate`… or the target/unknown token. */
+  name: string;
+  value: string | null;
+  tokens: string[];
+}
+
+export interface CmdIssue {
+  /** `block`: Cartograph won't run it. `warn`: runs, but worth knowing. */
+  level: "block" | "warn";
+  message: string;
+}
+
+/** The backend's reading of a command line (mirrors cmdline::Analysis). */
+export interface CmdAnalysis {
+  sudo: boolean;
+  items: CmdItem[];
+  issues: CmdIssue[];
+}
+
 /** One live progress update while a scan runs (mirrors runner::ScanProgress). */
 export interface ScanProgress {
   /** nmap's phase name, e.g. "Connect Scan", "Service scan", "NSE". */
