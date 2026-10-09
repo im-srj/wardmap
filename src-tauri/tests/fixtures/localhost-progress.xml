@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.94SVN scan initiated Fri Oct  9 16:35:13 2026 as: nmap -sT -p 1-2000 -&#45;scan-delay 4ms -&#45;stats-every 1s -oX - localhost -->
+<nmaprun scanner="nmap" args="nmap -sT -p 1-2000 -&#45;scan-delay 4ms -&#45;stats-every 1s -oX - localhost" start="1791543913" startstr="Fri Oct  9 16:35:13 2026" version="7.94SVN" xmloutputversion="1.05">
+<scaninfo type="connect" protocol="tcp" numservices="2000" services="1-2000"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<taskprogress task="Ping Scan" time="1791543913" percent="0.00"/>
+<hosthint><status state="up" reason="unknown-response" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="user"/>
+</hostnames>
+</hosthint>
+<taskprogress task="Connect Scan" time="1791543914" percent="12.15" remaining="8" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543915" percent="24.60" remaining="7" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543916" percent="37.00" remaining="6" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543917" percent="49.40" remaining="5" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543918" percent="61.80" remaining="4" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543919" percent="74.25" remaining="3" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543920" percent="86.65" remaining="2" etc="1791543921"/>
+<taskprogress task="Connect Scan" time="1791543921" percent="98.95" remaining="1" etc="1791543921"/>
+<host starttime="1791543913" endtime="1791543921"><status state="up" reason="syn-ack" reason_ttl="0"/>
+<address addr="127.0.0.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="localhost" type="user"/>
+<hostname name="localhost" type="PTR"/>
+</hostnames>
+<ports><extraports state="closed" count="1998">
+<extrareasons reason="conn-refused" count="1998" proto="tcp" ports="1-79,81-630,632-2000"/>
+</extraports>
+<port protocol="tcp" portid="80"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="http" method="table" conf="3"/></port>
+<port protocol="tcp" portid="631"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="ipp" method="table" conf="3"/></port>
+</ports>
+<times srtt="33" rttvar="24" to="100000"/>
+</host>
+<runstats><finished time="1791543921" timestr="Fri Oct  9 16:35:21 2026" summary="Nmap done at Fri Oct  9 16:35:21 2026; 1 IP address (1 host up) scanned in 8.08 seconds" elapsed="8.08" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

@@ -1,17 +1,55 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { NseScript, ScanDiff, ScanResult, StoredScan } from "./types";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type {
+  NseScript,
+  ScanDiff,
+  ScanProgress,
+  ScanResult,
+  StoredScan,
+} from "./types";
+
+export interface RunningScan {
+  /** Pass to `cancelScan`. */
+  runId: string;
+  /** Resolves when nmap finishes (the backend has persisted it by then).
+   *  Rejects with the backend's error string — "scan cancelled" after a
+   *  cancel, or invalid target / nmap missing / nmap error / parse error. */
+  result: Promise<ScanResult>;
+}
+
+let runSeq = 0;
 
 /**
- * Run an nmap scan via the Rust backend. `flags` are the preset flags only;
- * the backend appends `-oX -` itself. The backend also persists the scan.
- * Rejects with the backend's error string on failure (invalid target, nmap
- * not installed, parse error, ...).
+ * Start an nmap scan via the Rust backend. `flags` are the preset/script flags
+ * only; the backend appends its own capture flags (`--stats-every 1s -oX -`).
+ * `onProgress` fires roughly once a second while nmap reports progress.
  */
-export async function runScan(
+export function startScan(
   target: string,
   flags: string[],
-): Promise<ScanResult> {
-  return invoke<ScanResult>("run_nmap_scan", { target, flags });
+  onProgress: (p: ScanProgress) => void,
+): RunningScan {
+  const runId = `run-${Date.now()}-${++runSeq}`;
+  const channel = new Channel<ScanProgress>();
+  channel.onmessage = onProgress;
+  return {
+    runId,
+    result: invoke<ScanResult>("run_nmap_scan", {
+      runId,
+      target,
+      flags,
+      onProgress: channel,
+    }),
+  };
+}
+
+/** Kill a running scan. Resolves false if it had already finished. */
+export async function cancelScan(runId: string): Promise<boolean> {
+  return invoke<boolean>("cancel_scan", { runId });
+}
+
+/** The installed nmap's version; rejects if nmap can't be run. */
+export async function nmapVersion(): Promise<string> {
+  return invoke<string>("nmap_version");
 }
 
 /** List saved scans, newest first. */
