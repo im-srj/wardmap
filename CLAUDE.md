@@ -257,3 +257,29 @@ Next: M5 — topology view (interactive host/subnet graph).
 Next: M6 — NSE script browser (searchable/categorized picker; selecting
 scripts updates the live command preview; also unlocks cert data for M4's
 deferred cert diffing).
+
+### M6 — NSE script browser DONE (backend tested; GUI check pending)
+- `src/nse.rs`: catalogue from `nmap --script-help all -oX -` (XML, roxmltree —
+  no scripts-dir guessing per OS; ~0.25s for 605 scripts on 7.94). Command
+  `list_nse_scripts`. Fixture `script-help.xml` = 5 real entries.
+- Frontend `ScriptBrowser` (in `ScanForm`, between presets and preview):
+  lazy-loads on first open; search by name/description; category chips with
+  counts; per-script "more" for the full NSEDoc. Selection → one
+  `--script=a,b` arg via `buildFlags()` (presets.ts), so preview == actual run.
+  Amber warning when an intrusive/brute/dos/exploit script is selected.
+- Parser now reads `<script>` (ports) + `<hostscript>` (hosts) as
+  `scripts: [{id, output}]`, and `ssl-cert`'s structured elems into
+  `Port.cert: TlsCert` (sha1, subject/issuer CN, validity). Results table:
+  "▸ N scripts" expands output inline; host scripts listed under the table.
+  Fixture `localhost-scripts.xml` = real ssl-cert/http-title scan (hostname
+  redacted to `devbox`, PEM/modulus stripped).
+- M4's deferred cert diff DONE: `cert-changed` (SHA-1 differs) and `cert-new`
+  (incl. newly opened ports / added hosts). Cert missing from the NEWER scan
+  is intentionally NOT reported (usually = ssl-cert not run; "removed" would
+  be a false conclusion).
+- 26 tests green w/o nmap; fmt + clippy clean; tsc+vite clean. Live check via
+  `scan_demo -- localhost -p 5432 --script=ssl-cert` → cert parsed correctly.
+- Not done (possible follow-ups): `--script-args`, selecting a whole category
+  as a script spec (e.g. `--script=vuln`), ESLint/Prettier aren't actually
+  configured in the repo yet (CI only runs `tsc --noEmit`).
+Next: M7 — packaging (Homebrew / AppImage-or-apt / winget; real icon).
