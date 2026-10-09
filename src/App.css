@@ -63,6 +63,12 @@ body {
   font-size: 0.8rem;
 }
 
+.app__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .app__main {
   flex: 1;
   min-height: 0;
@@ -71,6 +77,77 @@ body {
   padding: 1.1rem 1.25rem;
   gap: 1.1rem;
   overflow: auto;
+}
+
+/* Sidebar / history ------------------------------------------------------- */
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--panel-inset);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar__title {
+  padding: 0.75rem 1rem 0.5rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.history__empty {
+  padding: 0 1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.history__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.5rem 0.5rem;
+  overflow-y: auto;
+}
+.history__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.2rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+}
+.history__item:hover {
+  background: rgba(56, 189, 248, 0.06);
+}
+.history__item--active {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: var(--accent);
+}
+.history__target {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history__meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.saved-banner {
+  margin-bottom: 0.7rem;
+  padding: 0.5rem 0.8rem;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 7px;
+  color: var(--accent);
+  font-size: 0.82rem;
 }
 
 /* Scan form --------------------------------------------------------------- */

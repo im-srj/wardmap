@@ -353,18 +353,17 @@ fn attr(node: Node, name: &str) -> Option<String> {
 // Running nmap
 // ---------------------------------------------------------------------------
 
-/// Run an nmap scan against `target` with the given `flags`, returning the
-/// parsed result.
+/// Run nmap and return the raw `-oX` XML — the source of truth we persist.
 ///
-/// We always append `-oX -` ourselves (XML to stdout); callers must not pass
-/// their own output flags.
+/// We always append `-oX -` ourselves (XML to stdout); callers pass only the
+/// preset `flags`, not their own output flags.
 ///
 /// Security: we use [`Command`] with explicit arguments (no shell), so there
 /// is no shell-injection vector. `target` is the untrusted, free-text field,
 /// so we reject one that is empty or starts with `-` to prevent it being
 /// interpreted as an nmap flag. `flags` are expected to be app-controlled
 /// presets, not free text.
-pub fn run_scan(target: &str, flags: &[String]) -> Result<ScanResult, ScanError> {
+pub fn run_nmap_raw(target: &str, flags: &[String]) -> Result<String, ScanError> {
     if target.trim().is_empty() || target.starts_with('-') {
         return Err(ScanError::InvalidTarget(target.to_string()));
     }
@@ -384,14 +383,15 @@ pub fn run_scan(target: &str, flags: &[String]) -> Result<ScanResult, ScanError>
         });
     }
 
-    let xml = String::from_utf8(output.stdout).map_err(ScanError::Utf8)?;
-    parse_nmap_xml(&xml).map_err(ScanError::Parse)
+    String::from_utf8(output.stdout).map_err(ScanError::Utf8)
 }
 
-/// Tauri command wrapper. Errors are stringified for the frontend.
-#[tauri::command]
-pub fn run_nmap_scan(target: String, flags: Vec<String>) -> Result<ScanResult, String> {
-    run_scan(&target, &flags).map_err(|e| e.to_string())
+/// Run a scan and parse it in one step. Used by the example harness and the
+/// guard tests; the Tauri command path calls `run_nmap_raw` directly so it can
+/// also persist the raw XML.
+pub fn run_scan(target: &str, flags: &[String]) -> Result<ScanResult, ScanError> {
+    let xml = run_nmap_raw(target, flags)?;
+    parse_nmap_xml(&xml).map_err(ScanError::Parse)
 }
 
 // ---------------------------------------------------------------------------

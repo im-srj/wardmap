@@ -47,3 +47,14 @@ export interface ScanResult {
   hosts: Host[];
   summary: RunStats | null;
 }
+
+/** A row in the saved-scan history (mirrors db::StoredScan). */
+export interface StoredScan {
+  id: number;
+  target: string;
+  args: string;
+  createdAt: number; // unix epoch seconds
+  hostsUp: number;
+  openPorts: number;
+  elapsedSecs: number | null;
+}
