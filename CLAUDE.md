@@ -360,3 +360,30 @@ scan (approved design: built-in, automatic, LAN-only):
   → bar fills with phase names; click History mid-scan → sidebar shows the
   running row; Cancel returns to idle and nothing is saved.
 Next: M9 — option catalogue (`shared/nmap-options.json`) + visual builder.
+
+### M9 + M10 — All nmap options + editable command line DONE (backend tested; GUI check pending)
+- `src-tauri/src/cmdline.rs` mirrors nmap's own `getopt_long_only`
+  (`long_options[]` + optstring transcribed from nmap.cc): abbreviations,
+  `-top`-style single-dash longs, clusters, attached values, deprecated
+  aliases. It is the trust boundary: `run_nmap_scan(run_id, command)`
+  re-analyzes the text, and `runner::run` only takes an `Analysis` and refuses
+  blocked ones (output flags in every spelling, `--stats-every`, `--resume`,
+  `-iR`, `-iL -`, non-scan modes, ambiguous/malformed input). Tricky cases were
+  checked against real nmap 7.94. New command `analyze_command` gives live
+  feedback.
+- `src/nmap-options.json` = UI catalogue (100+ options, nmap's sections, root/
+  risk/exclusive-group metadata). The Rust test `ui_catalogue_matches_the_parser`
+  keeps it consistent with the parser. `src/options.ts` = makeItem/setOption/
+  quoting.
+- UI: presets, NSE browser, new **All options** panel (`OptionsBuilder`) and
+  the now-**editable command line** (`CommandPreview`) all edit one list of
+  canonical option items. Backend issues + root/spoofing warnings are shown
+  under the command. Run is enabled only when the backend has cleared the
+  current command.
+- 61 Rust tests green w/o nmap (+16 cmdline incl. catalogue check); live tests
+  still pass; fmt + clippy clean; tsc+vite clean.
+- GUI check: open "All options", tick e.g. -sV, set -p and -T4 → the command
+  updates; click the command, paste `nmap -sSV -p- -oX out.xml host` → the
+  options follow and a red "output file" issue disables Run; remove `-oX
+  out.xml` → Run enables.
+Next: M11 — privileged scans (pkexec/osascript/UAC per scan), then M12.

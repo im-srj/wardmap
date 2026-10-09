@@ -23,6 +23,7 @@ roxmltree = "0.20"
 rusqlite = { version = "0.32", features = ["bundled"] }
 simple-dns = "0.12"
 quick-xml = "0.42.0"
+shell-words = "1.1.1"
 
 # openpty/setsid so nmap gets a controlling terminal (see runner.rs).
 [target.'cfg(unix)'.dependencies]

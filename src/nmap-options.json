@@ -1,0 +1,172 @@
+{
+  "nmapVersion": "7.94",
+  "sections": [
+    {
+      "id": "target",
+      "title": "Target specification",
+      "options": [
+        { "name": "-iL", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/targets.txt" }, "summary": "Read targets from a file, one host/range per line." },
+        { "name": "--exclude", "form": "value", "arg": { "kind": "hosts", "placeholder": "192.168.1.1,10.0.0.0/30" }, "summary": "Skip these hosts or networks (comma-separated)." },
+        { "name": "--excludefile", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/exclude.txt" }, "summary": "Skip the hosts listed in a file." }
+      ]
+    },
+    {
+      "id": "discovery",
+      "title": "Host discovery",
+      "options": [
+        { "name": "-sL", "form": "flag", "summary": "List scan: list the targets (with reverse DNS) without sending them any packets.", "group": "mode" },
+        { "name": "-sn", "form": "flag", "summary": "Ping scan: find which hosts are up, skip the port scan.", "group": "mode" },
+        { "name": "-Pn", "form": "flag", "summary": "Skip host discovery and treat every target as up.", "detail": "Useful when hosts block pings, but every address gets a full port scan, so it's much slower on sparse ranges." },
+        { "name": "-PS", "form": "attached", "arg": { "kind": "ports", "placeholder": "22,80,443", "optional": true }, "summary": "TCP SYN ping to the given ports (default 80).", "detail": "Without root, nmap uses a full connect() instead of a raw SYN." },
+        { "name": "-PA", "form": "attached", "arg": { "kind": "ports", "placeholder": "80,443", "optional": true }, "summary": "TCP ACK ping to the given ports (default 80).", "detail": "Without root, nmap falls back to a connect()-based ping." },
+        { "name": "-PU", "form": "attached", "arg": { "kind": "ports", "placeholder": "53,161", "optional": true }, "summary": "UDP ping to the given ports (default 40125).", "root": true },
+        { "name": "-PY", "form": "attached", "arg": { "kind": "ports", "placeholder": "80", "optional": true }, "summary": "SCTP INIT ping.", "root": true },
+        { "name": "-PE", "form": "flag", "summary": "ICMP echo (classic ping).", "root": true },
+        { "name": "-PP", "form": "flag", "summary": "ICMP timestamp ping; sometimes gets through when echo is filtered.", "root": true },
+        { "name": "-PM", "form": "flag", "summary": "ICMP address-mask ping.", "root": true },
+        { "name": "-PO", "form": "attached", "arg": { "kind": "text", "placeholder": "1,2,4", "optional": true }, "summary": "IP protocol ping (default ICMP, IGMP, IP-in-IP).", "root": true },
+        { "name": "-PR", "form": "flag", "summary": "ARP ping; the most reliable discovery on your own LAN.", "root": true },
+        { "name": "--disable-arp-ping", "form": "flag", "summary": "Don't use ARP/ND discovery on local networks." },
+        { "name": "--traceroute", "form": "flag", "summary": "Trace the network path (hops) to each host.", "root": true },
+        { "name": "-n", "form": "flag", "summary": "Never do reverse DNS; faster, but no hostnames.", "group": "dns" },
+        { "name": "-R", "form": "flag", "summary": "Always do reverse DNS, even for hosts that are down.", "group": "dns" },
+        { "name": "--dns-servers", "form": "value", "arg": { "kind": "text", "placeholder": "1.1.1.1,9.9.9.9" }, "summary": "Use these DNS servers for reverse lookups." },
+        { "name": "--system-dns", "form": "flag", "summary": "Use the operating system's resolver instead of nmap's own." },
+        { "name": "--resolve-all", "form": "flag", "summary": "Scan every address a hostname resolves to, not just the first." },
+        { "name": "--discovery-ignore-rst", "form": "flag", "summary": "Don't count a TCP RST as proof a host is up (for firewalls that forge them)." }
+      ]
+    },
+    {
+      "id": "technique",
+      "title": "Scan techniques",
+      "options": [
+        { "name": "-sT", "form": "flag", "summary": "TCP connect scan: full handshakes. The default without root.", "group": "tcp" },
+        { "name": "-sS", "form": "flag", "summary": "TCP SYN (half-open) scan: fast and quieter. The default as root.", "root": true, "group": "tcp" },
+        { "name": "-sU", "form": "flag", "summary": "UDP scan (DNS, SNMP, DHCP…). Slow: closed UDP ports are rate-limited.", "root": true },
+        { "name": "-sA", "form": "flag", "summary": "ACK scan: maps firewall rules (filtered vs unfiltered), not open ports.", "root": true, "group": "tcp" },
+        { "name": "-sW", "form": "flag", "summary": "Window scan: like ACK, but reads the TCP window to guess open ports on some systems.", "root": true, "group": "tcp" },
+        { "name": "-sM", "form": "flag", "summary": "Maimon scan (FIN/ACK probe).", "root": true, "group": "tcp" },
+        { "name": "-sN", "form": "flag", "summary": "TCP Null scan (no flags set); can slip past stateless firewalls.", "root": true, "group": "tcp", "risk": "evasion" },
+        { "name": "-sF", "form": "flag", "summary": "TCP FIN scan.", "root": true, "group": "tcp", "risk": "evasion" },
+        { "name": "-sX", "form": "flag", "summary": "TCP Xmas scan (FIN, PSH and URG set).", "root": true, "group": "tcp", "risk": "evasion" },
+        { "name": "--scanflags", "form": "value", "arg": { "kind": "text", "placeholder": "URGACKPSHRSTSYNFIN" }, "summary": "Build a custom TCP scan from your own flag set.", "root": true },
+        { "name": "-sI", "form": "value", "arg": { "kind": "text", "placeholder": "zombie-host[:port]" }, "summary": "Idle (zombie) scan: probes appear to come from another host.", "root": true, "group": "tcp", "risk": "spoofing" },
+        { "name": "-sY", "form": "flag", "summary": "SCTP INIT scan.", "root": true },
+        { "name": "-sZ", "form": "flag", "summary": "SCTP COOKIE-ECHO scan.", "root": true },
+        { "name": "-sO", "form": "flag", "summary": "IP protocol scan: which IP protocols (TCP, ICMP, GRE…) the host supports.", "root": true },
+        { "name": "-b", "form": "value", "arg": { "kind": "text", "placeholder": "user:pass@ftp-relay:21" }, "summary": "FTP bounce scan through a misconfigured FTP server.", "group": "tcp", "risk": "spoofing" }
+      ]
+    },
+    {
+      "id": "ports",
+      "title": "Ports",
+      "options": [
+        { "name": "-p", "form": "value", "arg": { "kind": "ports", "placeholder": "22,80,443 · 1-1024 · U:53,T:80 · - (all)" }, "summary": "Scan exactly these ports.", "group": "portset" },
+        { "name": "-F", "form": "flag", "summary": "Fast: only the 100 most common ports.", "group": "portset" },
+        { "name": "--top-ports", "form": "value", "arg": { "kind": "int", "placeholder": "200" }, "summary": "Scan the N most common ports." },
+        { "name": "--port-ratio", "form": "value", "arg": { "kind": "float", "placeholder": "0.01" }, "summary": "Scan ports more common than this ratio." },
+        { "name": "--exclude-ports", "form": "value", "arg": { "kind": "ports", "placeholder": "9100,631" }, "summary": "Never scan these ports." },
+        { "name": "-r", "form": "flag", "summary": "Scan ports in order instead of randomizing." }
+      ]
+    },
+    {
+      "id": "version",
+      "title": "Service & version detection",
+      "options": [
+        { "name": "-sV", "form": "flag", "summary": "Probe open ports to identify the service and its version." },
+        { "name": "--version-intensity", "form": "value", "arg": { "kind": "choice", "choices": [["0", "0 · lightest"], ["1", "1"], ["2", "2 · light"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7 · default"], ["8", "8"], ["9", "9 · try everything"]] }, "summary": "How many probes -sV tries per port (0–9)." },
+        { "name": "--version-light", "form": "flag", "summary": "Quicker, less thorough version detection (intensity 2)." },
+        { "name": "--version-all", "form": "flag", "summary": "Try every version probe (intensity 9)." },
+        { "name": "--allports", "form": "flag", "summary": "Don't skip any port during -sV (by default printer ports like 9100 are skipped).", "risk": "noisy" },
+        { "name": "--version-trace", "form": "flag", "summary": "Debug output for version detection." }
+      ]
+    },
+    {
+      "id": "scripts",
+      "title": "Scripts (NSE)",
+      "options": [
+        { "name": "-sC", "form": "flag", "summary": "Run the default script set (same as --script=default)." },
+        { "name": "--script", "form": "value", "arg": { "kind": "text", "placeholder": "default,vuln or \"http-* and not intrusive\"" }, "summary": "Scripts, categories or boolean expressions. The script browser fills this in." },
+        { "name": "--script-args", "form": "value", "arg": { "kind": "text", "placeholder": "http.useragent=Mozilla,userdb=users.txt" }, "summary": "Arguments for the selected scripts (key=value, comma-separated)." },
+        { "name": "--script-args-file", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/args.txt" }, "summary": "Read script arguments from a file." },
+        { "name": "--script-timeout", "form": "value", "arg": { "kind": "time", "placeholder": "30s" }, "summary": "Stop any script that runs longer than this." },
+        { "name": "--script-trace", "form": "flag", "summary": "Show all data scripts send and receive." }
+      ]
+    },
+    {
+      "id": "os",
+      "title": "OS detection",
+      "options": [
+        { "name": "-O", "form": "flag", "summary": "Guess the operating system from TCP/IP fingerprinting.", "root": true },
+        { "name": "-A", "form": "flag", "summary": "Aggressive: -O, -sV, -sC and --traceroute in one flag.", "root": true, "risk": "noisy" },
+        { "name": "--osscan-limit", "form": "flag", "summary": "Only fingerprint hosts with at least one open and one closed port.", "root": true },
+        { "name": "--osscan-guess", "form": "flag", "summary": "Report near-matches when there's no exact OS fingerprint.", "root": true },
+        { "name": "--max-os-tries", "form": "value", "arg": { "kind": "int", "placeholder": "1" }, "summary": "Retries per host for OS detection.", "root": true }
+      ]
+    },
+    {
+      "id": "timing",
+      "title": "Timing & performance",
+      "options": [
+        { "name": "-T", "form": "attached", "arg": { "kind": "choice", "choices": [["0", "T0 · paranoid"], ["1", "T1 · sneaky"], ["2", "T2 · polite"], ["3", "T3 · normal"], ["4", "T4 · aggressive"], ["5", "T5 · insane"]] }, "summary": "Timing template: T3 is the default, T4 suits fast reliable networks, T0–T1 evade IDS (very slowly)." },
+        { "name": "--min-rate", "form": "value", "arg": { "kind": "float", "placeholder": "100" }, "summary": "Send at least this many packets per second." },
+        { "name": "--max-rate", "form": "value", "arg": { "kind": "float", "placeholder": "50" }, "summary": "Send at most this many packets per second." },
+        { "name": "--host-timeout", "form": "value", "arg": { "kind": "time", "placeholder": "15m" }, "summary": "Give up on a host after this long." },
+        { "name": "--max-retries", "form": "value", "arg": { "kind": "int", "placeholder": "2" }, "summary": "Cap probe retransmissions per port." },
+        { "name": "--scan-delay", "form": "value", "arg": { "kind": "time", "placeholder": "200ms" }, "summary": "Wait at least this long between probes." },
+        { "name": "--max-scan-delay", "form": "value", "arg": { "kind": "time", "placeholder": "1s" }, "summary": "Never wait longer than this between probes." },
+        { "name": "--min-hostgroup", "form": "value", "arg": { "kind": "int", "placeholder": "64" }, "summary": "Scan at least this many hosts in parallel." },
+        { "name": "--max-hostgroup", "form": "value", "arg": { "kind": "int", "placeholder": "256" }, "summary": "Scan at most this many hosts in parallel." },
+        { "name": "--min-parallelism", "form": "value", "arg": { "kind": "int", "placeholder": "10" }, "summary": "Keep at least this many probes in flight." },
+        { "name": "-M", "form": "value", "arg": { "kind": "int", "placeholder": "100" }, "summary": "Keep at most this many probes in flight (--max-parallelism)." },
+        { "name": "--initial-rtt-timeout", "form": "value", "arg": { "kind": "time", "placeholder": "500ms" }, "summary": "Starting probe timeout." },
+        { "name": "--min-rtt-timeout", "form": "value", "arg": { "kind": "time", "placeholder": "100ms" }, "summary": "Lowest probe timeout." },
+        { "name": "--max-rtt-timeout", "form": "value", "arg": { "kind": "time", "placeholder": "1s" }, "summary": "Highest probe timeout." },
+        { "name": "--defeat-rst-ratelimit", "form": "flag", "summary": "Don't slow down for hosts that rate-limit RSTs (may mark some closed ports filtered).", "root": true },
+        { "name": "--defeat-icmp-ratelimit", "form": "flag", "summary": "Don't slow down for ICMP rate limits during UDP scans (may label some closed ports open|filtered).", "root": true },
+        { "name": "--nsock-engine", "form": "value", "arg": { "kind": "choice", "choices": [["epoll", "epoll"], ["kqueue", "kqueue"], ["poll", "poll"], ["select", "select"]] }, "summary": "Force nmap's I/O engine (troubleshooting)." }
+      ]
+    },
+    {
+      "id": "evasion",
+      "title": "Firewall/IDS evasion & spoofing",
+      "options": [
+        { "name": "-f", "form": "flag", "summary": "Fragment probes into 8-byte IP fragments.", "root": true, "risk": "evasion", "group": "frag" },
+        { "name": "-ff", "form": "flag", "summary": "Fragment probes into 16-byte IP fragments.", "root": true, "risk": "evasion", "group": "frag" },
+        { "name": "--mtu", "form": "value", "arg": { "kind": "int", "placeholder": "24 (multiple of 8)" }, "summary": "Fragment with a custom MTU.", "root": true, "risk": "evasion", "group": "frag" },
+        { "name": "-D", "form": "value", "arg": { "kind": "text", "placeholder": "RND:5 · decoy1,decoy2,ME" }, "summary": "Hide the scan among decoy source addresses.", "root": true, "risk": "spoofing" },
+        { "name": "-S", "form": "value", "arg": { "kind": "text", "placeholder": "10.0.0.5" }, "summary": "Spoof the source IP address (replies go to that address).", "root": true, "risk": "spoofing" },
+        { "name": "-e", "form": "value", "arg": { "kind": "text", "placeholder": "eth0" }, "summary": "Send packets from this network interface." },
+        { "name": "-g", "form": "value", "arg": { "kind": "int", "placeholder": "53" }, "summary": "Use this source port (some firewalls trust 53 or 20).", "risk": "evasion" },
+        { "name": "--proxies", "form": "value", "arg": { "kind": "text", "placeholder": "socks4://127.0.0.1:9050" }, "summary": "Relay TCP connections through HTTP/SOCKS4 proxies (connect scans and scripts only)." },
+        { "name": "--data", "form": "value", "arg": { "kind": "text", "placeholder": "deadbeef (hex)" }, "summary": "Append custom hex bytes to probes.", "root": true, "risk": "evasion" },
+        { "name": "--data-string", "form": "value", "arg": { "kind": "text", "placeholder": "hello" }, "summary": "Append a custom string to probes.", "root": true, "risk": "evasion" },
+        { "name": "--data-length", "form": "value", "arg": { "kind": "int", "placeholder": "25" }, "summary": "Pad probes with random bytes.", "root": true, "risk": "evasion" },
+        { "name": "--ip-options", "form": "value", "arg": { "kind": "text", "placeholder": "R · S 10.0.0.1 · \\x01…" }, "summary": "Send packets with these IP options (record route, source routing…).", "root": true, "risk": "evasion" },
+        { "name": "--ttl", "form": "value", "arg": { "kind": "int", "placeholder": "64" }, "summary": "Set the IP time-to-live.", "root": true },
+        { "name": "--spoof-mac", "form": "value", "arg": { "kind": "text", "placeholder": "0 · Apple · 00:11:22:33:44:55" }, "summary": "Spoof the source MAC address (0 = random).", "root": true, "risk": "spoofing" },
+        { "name": "--badsum", "form": "flag", "summary": "Send probes with bad checksums (anything that answers isn't checking them, e.g. a firewall).", "root": true, "risk": "evasion" },
+        { "name": "--randomize-hosts", "form": "flag", "summary": "Scan targets in random order." }
+      ]
+    },
+    {
+      "id": "misc",
+      "title": "Output & misc",
+      "options": [
+        { "name": "--open", "form": "flag", "summary": "Only report open (or possibly open) ports." },
+        { "name": "--reason", "form": "flag", "summary": "Record why nmap decided each port's state." },
+        { "name": "-6", "form": "flag", "summary": "Scan IPv6 targets." },
+        { "name": "-v", "form": "flag", "summary": "Verbose: more detail in nmap's own output." },
+        { "name": "-d", "form": "flag", "summary": "Debugging output." },
+        { "name": "--packet-trace", "form": "flag", "summary": "Show every packet sent and received." },
+        { "name": "--privileged", "form": "flag", "summary": "Assume full raw-socket privileges (use only if nmap really has them, e.g. via setcap).", "group": "priv" },
+        { "name": "--unprivileged", "form": "flag", "summary": "Assume no raw-socket privileges.", "group": "priv" },
+        { "name": "--send-eth", "form": "flag", "summary": "Send raw Ethernet frames.", "root": true, "group": "send" },
+        { "name": "--send-ip", "form": "flag", "summary": "Send raw IP packets instead of Ethernet frames.", "root": true, "group": "send" },
+        { "name": "--datadir", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/nmap-data" }, "summary": "Use nmap data files (services, scripts, fingerprints) from this directory." },
+        { "name": "--servicedb", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/nmap-services" }, "summary": "Use a custom services file." },
+        { "name": "--versiondb", "form": "value", "arg": { "kind": "file", "placeholder": "/path/to/nmap-service-probes" }, "summary": "Use a custom service-probes file." }
+      ]
+    }
+  ]
+}

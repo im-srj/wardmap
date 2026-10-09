@@ -1,10 +1,19 @@
+import { findOption, makeItem, setOption } from "./options";
+import type { CmdItem } from "./types";
+
 export interface Preset {
   id: string;
   label: string;
   /** Shown under the label so the user learns what the flags do. */
   description: string;
-  /** nmap flags for this preset. The backend appends `-oX -`. */
-  flags: string[];
+  /** The options this preset sets, as canonical items. */
+  items: CmdItem[];
+}
+
+function opt(name: string, value: string | null = null): CmdItem {
+  const def = findOption(name);
+  if (!def) throw new Error(`preset uses unknown option ${name}`);
+  return makeItem(def, value);
 }
 
 // Deliberately root-free presets: Cartograph runs unprivileged, so no -sS/-O/-A
@@ -14,32 +23,41 @@ export const PRESETS: Preset[] = [
     id: "quick",
     label: "Quick",
     description: "Top 100 ports — fastest (-F)",
-    flags: ["-F"],
+    items: [opt("-F")],
   },
   {
     id: "regular",
     label: "Regular",
     description: "Top 1000 ports — nmap default",
-    flags: [],
+    items: [],
   },
   {
     id: "version",
     label: "Service + version",
     description: "Identify service & version on open ports (-sV)",
-    flags: ["-sV"],
+    items: [opt("-sV")],
   },
 ];
 
-/** Preset flags plus the selected NSE scripts as one `--script=a,b` argument
- *  (a single arg, so the preview shows exactly what the backend receives). */
-export function buildFlags(preset: Preset, scripts: string[]): string[] {
-  return scripts.length > 0
-    ? [...preset.flags, `--script=${scripts.join(",")}`]
-    : preset.flags;
+/** Option names any preset manages. Presets only swap these; everything else
+ *  the user set (scripts, timing, …) survives a preset change. */
+const PRESET_NAMES = new Set(PRESETS.flatMap((p) => p.items.map((i) => i.name)));
+
+export function applyPreset(items: CmdItem[], preset: Preset): CmdItem[] {
+  let next = items.filter((i) => !PRESET_NAMES.has(i.name));
+  for (const item of preset.items)
+    next = setOption(next, findOption(item.name)!, item.value);
+  return next;
 }
 
-/** The literal nmap command the user would type — our `-oX -` capture flag is
- *  intentionally omitted so the shown command is reproducible in a terminal. */
-export function buildCommand(flags: string[], target: string): string {
-  return ["nmap", ...flags, target.trim() || "<target>"].join(" ");
+/** The preset whose managed options are exactly the ones currently set. */
+export function matchingPreset(items: CmdItem[]): Preset | undefined {
+  const set = (xs: CmdItem[]) =>
+    xs
+      .filter((i) => PRESET_NAMES.has(i.name))
+      .map((i) => i.tokens.join(" "))
+      .sort()
+      .join("\u0000");
+  const current = set(items);
+  return PRESETS.find((p) => set(p.items) === current);
 }
