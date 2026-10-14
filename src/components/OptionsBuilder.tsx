@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import {
+  SCRIPT_SECTION,
   SECTIONS,
   findOption,
+  isScriptOption,
   setOption,
   type OptionDef,
 } from "../options";
@@ -15,6 +17,9 @@ interface Props {
   /** Hide the panel (ScanForm's collapsed state); chips stay hidden too. */
   collapsed?: boolean;
 }
+
+/** Every section but Scripts (NSE), which the script browser owns. */
+const SECTIONS_HERE = SECTIONS.filter((s) => s !== SCRIPT_SECTION);
 
 const RISK_LABEL: Record<NonNullable<OptionDef["risk"]>, string> = {
   noisy: "noisy",
@@ -35,9 +40,14 @@ function matches(def: OptionDef, q: string): boolean {
  * or meaning. Edits go straight into the command's option items, so the
  * command preview (and the run) always reflect exactly what's ticked here.
  * Options the catalogue doesn't cover — typed in the command line — still
- * show as chips and can be removed.
+ * show as chips and can be removed. nmap's Scripts (NSE) options aren't
+ * here: the script browser is the one place they're edited.
  */
-export function OptionsBuilder({ items, onChange, collapsed = false }: Props) {
+export function OptionsBuilder({
+  items,
+  onChange,
+  collapsed = false,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [openSections, setOpenSections] = useState<Set<string>>(
@@ -49,11 +59,16 @@ export function OptionsBuilder({ items, onChange, collapsed = false }: Props) {
     () =>
       q === ""
         ? []
-        : SECTIONS.flatMap((s) => s.options.filter((o) => matches(o, q))),
+        : SECTIONS_HERE.flatMap((s) => s.options.filter((o) => matches(o, q))),
     [q],
   );
 
   if (collapsed) return null;
+
+  // Script options show (as chips, with their settings) in the script browser.
+  const own = items
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => !isScriptOption(item.name));
 
   const set = (def: OptionDef, value?: string | null) =>
     onChange(setOption(items, def, value));
@@ -92,12 +107,12 @@ export function OptionsBuilder({ items, onChange, collapsed = false }: Props) {
           />
           <Icon name="layers" size={15} />
           All options
-          {items.length > 0 && (
-            <span className="nse__count">{items.length} set</span>
+          {own.length > 0 && (
+            <span className="nse__count">{own.length} set</span>
           )}
           <span className="nse__hint">ports, timing, discovery, evasion…</span>
         </button>
-        {items.map((item, i) => {
+        {own.map(({ item, i }) => {
           const known = item.kind === "option";
           return (
             <span
@@ -146,7 +161,7 @@ export function OptionsBuilder({ items, onChange, collapsed = false }: Props) {
             </ul>
           ) : (
             <div className="opt-sections">
-              {SECTIONS.map((s) => {
+              {SECTIONS_HERE.map((s) => {
                 const isOpen = openSections.has(s.id);
                 const active = s.options.filter((o) =>
                   items.some((i) => i.name === o.name),
@@ -192,7 +207,7 @@ export function OptionsBuilder({ items, onChange, collapsed = false }: Props) {
   );
 }
 
-function OptionRow({
+export function OptionRow({
   def,
   item,
   onSet,

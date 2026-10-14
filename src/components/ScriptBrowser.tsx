@@ -1,15 +1,28 @@
 import { useMemo, useState } from "react";
 import { listNseScripts } from "../api";
-import type { NseScript } from "../types";
+import {
+  SCRIPT_SECTION,
+  findOption,
+  isScriptOption,
+  setOption,
+} from "../options";
+import type { CmdItem, NseScript } from "../types";
 import { Icon } from "./Icon";
+import { OptionRow } from "./OptionsBuilder";
 
 interface Props {
-  selected: string[];
-  onChange: (ids: string[]) => void;
+  /** The command's options; this panel edits nmap's Scripts (NSE) ones. */
+  items: CmdItem[];
+  onChange: (items: CmdItem[]) => void;
   /** Hide the picker but keep the intrusive-script warning (and this
    *  component's loaded catalogue) — see ScanForm's collapsible options. */
   collapsed?: boolean;
 }
+
+const SCRIPT_DEF = findOption("--script")!;
+/** The section's other options (-sC, --script-args…); --script itself is
+ *  what the picker edits. */
+const SETTINGS = SCRIPT_SECTION.options.filter((o) => o !== SCRIPT_DEF);
 
 /** Categories whose scripts can crash services, lock accounts, or trip IDS —
  *  selecting one shows a warning. */
@@ -20,10 +33,11 @@ function summary(description: string): string {
   return description.split(/\n\s*\n/)[0].replace(/\s+/g, " ");
 }
 
-/** Searchable, categorized picker over the installed nmap's NSE scripts.
+/** Searchable, categorized picker over the installed nmap's NSE scripts,
+ *  plus the rest of nmap's script options — the one place they're edited.
  *  The catalogue is loaded from nmap the first time the panel is opened. */
 export function ScriptBrowser({
-  selected,
+  items,
   onChange,
   collapsed = false,
 }: Props) {
@@ -33,6 +47,7 @@ export function ScriptBrowser({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   async function toggleOpen() {
     const next = !open;
@@ -45,6 +60,23 @@ export function ScriptBrowser({
         setError(String(e));
       }
     }
+  }
+
+  // The picker edits --script's comma list. Categories or expressions (added
+  // here as a whole category, or typed into the command line) ride along as
+  // entries of their own.
+  const selected = (items.find((i) => i.name === "--script")?.value ?? "")
+    .split(",")
+    .filter(Boolean);
+  const settings = items
+    .map((item, i) => ({ item, i }))
+    .filter(
+      ({ item }) => isScriptOption(item.name) && item.name !== SCRIPT_DEF.name,
+    );
+  function setSelected(ids: string[]) {
+    onChange(
+      setOption(items, SCRIPT_DEF, ids.length ? ids.join(",") : undefined),
+    );
   }
 
   const categories = useMemo(() => {
@@ -69,12 +101,14 @@ export function ScriptBrowser({
     () => new Map((scripts ?? []).map((s) => [s.id, s])),
     [scripts],
   );
-  const risky = selected.filter((id) =>
-    byId.get(id)?.categories.some((c) => RISKY.has(c)),
+  const risky = selected.filter(
+    (id) =>
+      RISKY.has(id) || byId.get(id)?.categories.some((c) => RISKY.has(c)),
   );
+  const nSet = settings.length;
 
   function toggle(id: string) {
-    onChange(
+    setSelected(
       selected.includes(id)
         ? selected.filter((s) => s !== id)
         : [...selected, id].sort(),
@@ -97,7 +131,7 @@ export function ScriptBrowser({
               className="nse__caret"
             />
             <Icon name="code" size={15} />
-            {selected.length > 0 ? "NSE scripts" : "Add NSE scripts"}
+            {selected.length + nSet > 0 ? "NSE scripts" : "Add NSE scripts"}
             {selected.length > 0 && (
               <span className="nse__count">{selected.length} selected</span>
             )}
@@ -116,11 +150,30 @@ export function ScriptBrowser({
               </button>
             </span>
           ))}
-          {selected.length > 1 && (
+          {settings.map(({ item, i }) => (
+            <span
+              key={`${i}-${item.tokens.join(" ")}`}
+              className="nse-chip"
+              title={findOption(item.name)?.summary}
+            >
+              <span className="mono">{item.tokens.join(" ")}</span>
+              <button
+                type="button"
+                className="nse-chip__remove"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                aria-label={`Remove ${item.tokens.join(" ")}`}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          ))}
+          {selected.length + nSet > 1 && (
             <button
               type="button"
               className="nse__clear"
-              onClick={() => onChange([])}
+              onClick={() =>
+                onChange(items.filter((i) => !isScriptOption(i.name)))
+              }
             >
               clear
             </button>
@@ -189,6 +242,20 @@ export function ScriptBrowser({
                   </button>
                 ))}
               </div>
+              {category !== null && (
+                <label className="nse__whole">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(category)}
+                    onChange={() => toggle(category)}
+                  />
+                  Run the whole <strong>{category}</strong> category
+                  <span className="mono muted">--script={category}</span>
+                  <span className="muted">
+                    — includes scripts added in later nmap versions
+                  </span>
+                </label>
+              )}
 
               <ul className="nse__list">
                 {visible.length === 0 && (
@@ -250,6 +317,40 @@ export function ScriptBrowser({
               </ul>
             </>
           )}
+
+          <section className="opt-section">
+            <button
+              type="button"
+              className="opt-section__head"
+              onClick={() => setShowSettings((s) => !s)}
+              aria-expanded={showSettings}
+            >
+              <Icon
+                name={showSettings ? "chevronDown" : "chevronRight"}
+                size={13}
+                className="nse__caret"
+              />
+              Script settings
+              <span className="nse__hint">
+                default set (-sC), arguments, timeout, trace
+              </span>
+              <span className="opt-section__n">
+                {nSet > 0 ? `${nSet} of ${SETTINGS.length}` : SETTINGS.length}
+              </span>
+            </button>
+            {showSettings && (
+              <ul className="nse__list opt-list">
+                {SETTINGS.map((def) => (
+                  <OptionRow
+                    key={def.name}
+                    def={def}
+                    item={items.find((i) => i.name === def.name)}
+                    onSet={(v) => onChange(setOption(items, def, v))}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       )}
     </div>
