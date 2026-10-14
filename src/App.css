@@ -579,13 +579,31 @@ select {
   fill: var(--surface-3);
   stroke: var(--border-strong);
 }
-.brand-mark__edges line {
+.brand-mark__sweep {
+  fill: var(--accent);
+  fill-opacity: 0.3;
+}
+.brand-mark__ring {
+  fill: none;
   stroke: var(--accent);
-  stroke-opacity: 0.45;
-  stroke-width: 1.1;
+  stroke-opacity: 0.35;
+  stroke-width: 0.9;
+}
+.brand-mark__needle {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+.brand-mark__shield {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.9;
+  stroke-linejoin: round;
 }
 .brand-mark__node {
   fill: var(--text);
+}
+.brand-mark__node--dim {
+  fill-opacity: 0.6;
 }
 .brand-mark__core {
   fill: var(--accent);

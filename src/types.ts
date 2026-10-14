@@ -86,7 +86,7 @@ export interface CmdItem {
 }
 
 export interface CmdIssue {
-  /** `block`: Cartograph won't run it. `warn`: runs, but worth knowing. */
+  /** `block`: Wardmap won't run it. `warn`: runs, but worth knowing. */
   level: "block" | "warn";
   message: string;
 }

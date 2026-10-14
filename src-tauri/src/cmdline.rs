@@ -1,6 +1,6 @@
 //! Understanding an nmap command line: split text into argv, classify every
 //! token exactly the way nmap's own `getopt_long_only` would, and check the
-//! result against Cartograph's policy before anything runs.
+//! result against Wardmap's policy before anything runs.
 //!
 //! Why mirror getopt instead of matching flag names: nmap accepts unique
 //! abbreviations of long options (`--stats` = `--stats-every`), single-dash
@@ -205,7 +205,7 @@ pub struct Item {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Level {
-    /// Cartograph won't run this command.
+    /// Wardmap won't run this command.
     Block,
     /// Runs, but the user should know something.
     Warn,
@@ -309,7 +309,7 @@ pub fn analyze_text(text: &str) -> Analysis {
         } else {
             a.issue(
                 Level::Block,
-                "Running as root from Cartograph only works on Linux so far. \
+                "Running as root from Wardmap only works on Linux so far. \
                  Remove sudo, or run this command in a terminal.",
             );
         }
@@ -317,7 +317,7 @@ pub fn analyze_text(text: &str) -> Analysis {
     a
 }
 
-/// Options Cartograph adds to every run (or that only redirect output), so a
+/// Options Wardmap adds to every run (or that only redirect output), so a
 /// recorded command line drops them before it can be run again.
 const CAPTURE_OPTIONS: &[&str] = &[
     "-oA",
@@ -675,7 +675,7 @@ fn timing_level(v: &str) -> Option<String> {
         .map(|i| i.to_string())
 }
 
-/// Cartograph's own rules, on top of "does nmap understand it".
+/// Wardmap's own rules, on top of "does nmap understand it".
 fn apply_policy(a: &mut Analysis) {
     let mut has_input_list = false;
     let mut issues = Vec::new();
@@ -689,24 +689,24 @@ fn apply_policy(a: &mut Analysis) {
         match (item.kind, item.name.as_str(), item.value.as_deref()) {
             (Kind::Option, "-oA" | "-oN" | "-oM" | "-oG" | "-oS" | "-oH" | "-oX", _) => {
                 block(format!(
-                    "{} writes an output file. Cartograph captures nmap's XML itself; \
+                    "{} writes an output file. Wardmap captures nmap's XML itself; \
                      export results after the scan instead.",
                     item.name
                 ))
             }
             (Kind::Option, "--stats-every", _) => {
-                block("--stats-every is set by Cartograph (it drives the progress bar).".into())
+                block("--stats-every is set by Wardmap (it drives the progress bar).".into())
             }
             (Kind::Option, "--resume", _) => block(
                 "--resume continues a scan from an nmap log file; run it in a terminal.".into(),
             ),
             (Kind::Option, "-iR", _) => block(
-                "-iR scans random internet hosts. Cartograph only scans targets you \
+                "-iR scans random internet hosts. Wardmap only scans targets you \
                  enter explicitly."
                     .into(),
             ),
             (Kind::Option, "-iL", Some("-")) => {
-                block("-iL - reads targets from stdin, which Cartograph doesn't provide.".into())
+                block("-iL - reads targets from stdin, which Wardmap doesn't provide.".into())
             }
             (Kind::Option, "-iL", _) => has_input_list = true,
             (Kind::Option, "-h" | "-V" | "--iflist" | "--script-help" | "--script-updatedb", _) => {

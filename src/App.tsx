@@ -166,7 +166,7 @@ function App() {
   const command = commandText(optItems, target, elevate);
 
   // Re-check the command whenever it changes (debounced). The backend is the
-  // authority on what nmap will make of it and what Cartograph won't run.
+  // authority on what nmap will make of it and what Wardmap won't run.
   useEffect(() => {
     const seq = ++analyzeSeq.current;
     const id = setTimeout(() => {
@@ -436,7 +436,7 @@ function App() {
         <div className="brand">
           <BrandMark />
           <div className="brand__text">
-            <span className="brand__name">Cartograph</span>
+            <span className="brand__name">Wardmap</span>
             <span className="brand__tag">network mapper</span>
           </div>
         </div>
@@ -932,8 +932,8 @@ function NmapMissing({ error }: { error: string }) {
       <div className="error-card__body">
         <div className="error-card__title">nmap isn't installed</div>
         <p className="nmap-missing__text">
-          Cartograph drives the real nmap binary, which wasn't found on your
-          PATH. Install it, then restart Cartograph:
+          Wardmap drives the real nmap binary, which wasn't found on your
+          PATH. Install it, then restart Wardmap:
         </p>
         <ul className="nmap-missing__list">
           <li>

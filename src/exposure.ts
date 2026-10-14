@@ -49,7 +49,7 @@ export const CATEGORIES: Record<Category, { label: string; blurb: string }> = {
     label: "Media & IoT",
     blurb: "Streaming, cameras and smart-device messaging.",
   },
-  other: { label: "Other", blurb: "Services Cartograph has no notes for yet." },
+  other: { label: "Other", blurb: "Services Wardmap has no notes for yet." },
 };
 
 /** Display order for categories (most security-relevant first). */

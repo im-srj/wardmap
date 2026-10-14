@@ -21,7 +21,16 @@ pub fn run() {
             // identifier), so scans persist across restarts.
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            let conn = db::open(dir.join("cartograph.sqlite3"))?;
+            let path = dir.join("wardmap.sqlite3");
+            // The app was called Cartograph (bundle id com.cartograph.app)
+            // until 2026-10; carry its history over on first launch.
+            if let Some(parent) = dir.parent() {
+                let legacy = parent.join("com.cartograph.app").join("cartograph.sqlite3");
+                if let Err(e) = db::adopt_legacy(&legacy, &path) {
+                    eprintln!("couldn't move the old Cartograph database: {e}");
+                }
+            }
+            let conn = db::open(path)?;
             app.manage(db::Db(Mutex::new(conn)));
             app.manage(runner::Runs::default());
             Ok(())

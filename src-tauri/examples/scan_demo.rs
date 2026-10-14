@@ -7,7 +7,7 @@
 //! First arg is the target; any remaining args are passed to nmap as flags.
 //! This will be superseded by the UI in M2.
 
-use cartograph_lib::scan::run_scan;
+use wardmap_lib::scan::run_scan;
 
 fn main() {
     let mut args = std::env::args().skip(1);

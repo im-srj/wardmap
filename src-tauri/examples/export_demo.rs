@@ -2,8 +2,8 @@
 //! nmap's own output:
 //! `cargo run --example export_demo -- scan.xml normal|grepable|csv|json|html|xml`
 
-use cartograph_lib::export::{self, Format};
-use cartograph_lib::scan;
+use wardmap_lib::export::{self, Format};
+use wardmap_lib::scan;
 
 fn main() {
     let mut args = std::env::args().skip(1);

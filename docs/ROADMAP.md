@@ -1,4 +1,4 @@
-# Cartograph roadmap — full nmap coverage (post-M6)
+# Wardmap roadmap — full nmap coverage (post-M6)
 
 Status as of 2026-10-09: M0–M6 and M8–M12 done (M11 Linux-only), plus the UI overhaul, exposure map and
 device identification. M7 (packaging) has not started. This document plans the
@@ -173,7 +173,7 @@ What shipped, and where it differs from the original plan:
 
 ## M7 — Packaging  *(moved after M8–M11)*
 
-Unchanged scope (Homebrew, AppImage/deb, winget, real icon). It needs M8's
+Unchanged scope (Homebrew, AppImage/deb, winget). It needs M8's
 nmap preflight and M11's elevation story per OS, which is why it moves after
 them. Also decide `WEBKIT_DISABLE_DMABUF_RENDERER` for the Linux package.
 

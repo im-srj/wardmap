@@ -197,7 +197,7 @@ export function OptionsBuilder({
             </div>
           )}
           <p className="opt-footnote">
-            Output options (-oX, -oN…) are handled by Cartograph: it always
+            Output options (-oX, -oN…) are handled by Wardmap: it always
             captures nmap's XML itself. Anything not listed here can be typed
             straight into the command line below.
           </p>

@@ -260,16 +260,10 @@ export function Icon({ name, size = 16, className }: Props) {
   );
 }
 
-/** The app mark: the icon's hexagon of hosts around a central scanner node. */
+/** The app mark (same drawing as app-icon.svg): a shield whose two-pointed
+ *  base is a W, over a radar sweep. Simplified for sidebar size — no
+ *  gradient or clip path, so it themes from CSS tokens alone. */
 export function BrandMark({ size = 28 }: { size?: number }) {
-  const pts = [
-    [16, 5],
-    [25.5, 10.5],
-    [25.5, 21.5],
-    [16, 27],
-    [6.5, 21.5],
-    [6.5, 10.5],
-  ];
   return (
     <svg
       className="brand-mark"
@@ -278,22 +272,25 @@ export function BrandMark({ size = 28 }: { size?: number }) {
       viewBox="0 0 32 32"
       aria-hidden="true"
     >
-      <rect width="32" height="32" rx="8" className="brand-mark__bg" />
-      <g className="brand-mark__edges">
-        {pts.map(([x, y], i) => {
-          const [nx, ny] = pts[(i + 1) % pts.length];
-          return (
-            <g key={i}>
-              <line x1={x} y1={y} x2={nx} y2={ny} />
-              <line x1={16} y1={16} x2={x} y2={y} />
-            </g>
-          );
-        })}
-      </g>
-      {pts.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={2.3} className="brand-mark__node" />
-      ))}
-      <circle cx={16} cy={16} r={3.6} className="brand-mark__core" />
+      <rect width="32" height="32" rx="7" className="brand-mark__bg" />
+      <path
+        d="M16 14.5V4.6A9.9 9.9 0 0 1 23.8 8.4Z"
+        className="brand-mark__sweep"
+      />
+      <circle cx={16} cy={14.5} r={5} className="brand-mark__ring" />
+      <path d="M16 14.5 23.8 8.4" className="brand-mark__needle" />
+      <path
+        d="M16 3.8 26.5 7V14c0 4.7-1.7 8.8-4.6 13L16 20.6l-5.9 6.4C7.2 22.8 5.5 18.7 5.5 14V7Z"
+        className="brand-mark__shield"
+      />
+      <circle cx={16} cy={14.5} r={1.7} className="brand-mark__core" />
+      <circle cx={19.4} cy={8.6} r={1.4} className="brand-mark__node" />
+      <circle
+        cx={11.6}
+        cy={17.9}
+        r={1.2}
+        className="brand-mark__node brand-mark__node--dim"
+      />
     </svg>
   );
 }
