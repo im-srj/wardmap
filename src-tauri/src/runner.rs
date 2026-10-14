@@ -40,7 +40,7 @@ pub enum RunError {
     Cancelled,
     /// A scan with this run id is already running.
     DuplicateRun(String),
-    /// The command failed Cartograph's checks (see `cmdline`); never spawned.
+    /// The command failed Wardmap's checks (see `cmdline`); never spawned.
     Blocked(String),
     /// The user dismissed the password dialog for a root scan.
     AuthCancelled,

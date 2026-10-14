@@ -1,11 +1,11 @@
-# Cartograph
+# Wardmap
 
 **A modern desktop GUI for [Nmap](https://nmap.org).** Build scans visually or
 type any nmap command, watch them run, and keep every result. You can compare
 scans over time, see what a network exposes, and browse NSE scripts, all
 locally.
 
-Cartograph is meant to replace [Zenmap](https://nmap.org/zenmap/), which has
+Wardmap is meant to replace [Zenmap](https://nmap.org/zenmap/), which has
 been unmaintained since 2019, is Python 2/GTK, and has no Apple Silicon build.
 It does **not** reimplement Nmap: it runs the real `nmap` binary and parses
 its XML output.
@@ -34,7 +34,7 @@ its XML output.
   can cancel at any time. Up to two scans run at once and the rest are queued.
   You can keep browsing while scans run.
 - **Root scans (Linux).** Tick *Run as root*, or start the command with `sudo`,
-  for `-sS`, `-O`, `-A` and similar options. Cartograph asks for your password
+  for `-sS`, `-O`, `-A` and similar options. Wardmap asks for your password
   through the system (polkit) dialog **on every such scan** and never keeps
   elevated rights.
 - **Scan history.** Every completed scan is saved to a local SQLite database:
@@ -46,20 +46,20 @@ its XML output.
 - **Exposure map.** Hosts are grouped by subnet, with a device-type guess,
   colour-coded services, plain-language notes on what each service is, and a
   *Needs attention* filter.
-- **Device identification.** On private LANs, Cartograph adds MAC address +
+- **Device identification.** On private LANs, Wardmap adds MAC address +
   vendor (from the OS ARP cache and nmap's own vendor database) and mDNS names
   to each host.
 - **Export.** nmap XML, JSON, CSV, `-oN`-style text, `-oG`-style grepable, and
   a standalone HTML report.
 - **Six themes**, with fonts and icons bundled in the app.
-- **No telemetry, no network calls of its own.** The only traffic Cartograph
+- **No telemetry, no network calls of its own.** The only traffic Wardmap
   sends is the scans you start, plus local mDNS lookups for hosts on your LAN.
 
 ## Requirements
 
 | | |
 |---|---|
-| **nmap** | Installed and on your `PATH`. Developed against 7.94. Cartograph tells you if it can't find nmap. |
+| **nmap** | Installed and on your `PATH`. Developed against 7.94. Wardmap tells you if it can't find nmap. |
 | **OS** | Linux (tested on Ubuntu 24.04). macOS and Windows should build but are untested. Root scans are Linux-only for now. |
 | **To build** | Rust (recent stable, via [rustup](https://rustup.rs)), Node.js 20+, and the [Tauri v2 system prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. |
 
@@ -89,7 +89,7 @@ WebKitGTK rendering bug. Launch with:
 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 ```
 
-## Using Cartograph
+## Using Wardmap
 
 1. Enter a target (host, IP, CIDR range or list) that **you own or are
    authorised to scan**.
@@ -102,20 +102,20 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 Some flags are blocked on purpose, and the command line explains why when you
 use one:
 
-- **Output flags** (`-oX file`, `-oN`, …). Cartograph manages nmap's output
+- **Output flags** (`-oX file`, `-oN`, …). Wardmap manages nmap's output
   itself. Use Export instead.
 - **`--resume`, `--stats-every`, `-iL -`, and modes like `-h` / `-V`.** These
-  conflict with how Cartograph runs nmap.
-- **`-iR` (random internet targets).** Cartograph only scans hosts you typed
+  conflict with how Wardmap runs nmap.
+- **`-iR` (random internet targets).** Wardmap only scans hosts you typed
   in.
 
-Your data lives in `cartograph.sqlite3` in the app data directory:
+Your data lives in `wardmap.sqlite3` in the app data directory:
 
 | OS | Path |
 |---|---|
-| Linux | `~/.local/share/com.cartograph.app/` |
-| macOS | `~/Library/Application Support/com.cartograph.app/` |
-| Windows | `%APPDATA%\com.cartograph.app\` |
+| Linux | `~/.local/share/io.github.im-srj.wardmap/` |
+| macOS | `~/Library/Application Support/io.github.im-srj.wardmap/` |
+| Windows | `%APPDATA%\io.github.im-srj.wardmap\` |
 
 ## How it works
 
@@ -211,7 +211,7 @@ push.
 | M9–M10: full option catalogue, editable command line | Done |
 | M11: root scans | Done on Linux; macOS/Windows pending |
 | M12: profiles, re-run, import/export, queue | Done |
-| **M7: packaging** (Homebrew, AppImage/deb, winget, real icon) | **Next** |
+| **M7: packaging** (Homebrew, AppImage/deb, winget) | **Next** |
 
 Details and open questions: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -224,5 +224,5 @@ Unauthorised scanning may be illegal where you live.
 
 No license has been chosen yet. Until one is added, all rights are reserved.
 Nmap itself is distributed under the
-[Nmap Public Source License](https://nmap.org/npsl/). Cartograph runs it as a
+[Nmap Public Source License](https://nmap.org/npsl/). Wardmap runs it as a
 separate program and doesn't bundle it.

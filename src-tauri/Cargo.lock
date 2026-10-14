@@ -286,23 +286,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cartograph"
-version = "0.1.0"
-dependencies = [
- "libc",
- "quick-xml",
- "roxmltree",
- "rusqlite",
- "serde",
- "serde_json",
- "shell-words",
- "simple-dns",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
-]
-
-[[package]]
 name = "cc"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3860,6 +3843,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec4cdd0dd910afe868b7ef477227d8d538b46b3075031afee8a9f2acb0a2ed0b"
 dependencies = [
  "try-lock",
+]
+
+[[package]]
+name = "wardmap"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "quick-xml",
+ "roxmltree",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "shell-words",
+ "simple-dns",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
 ]
 
 [[package]]

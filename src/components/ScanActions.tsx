@@ -12,7 +12,7 @@ interface Props {
 const FORMATS: { id: ExportFormat; label: string; hint: string }[] = [
   { id: "html", label: "HTML report", hint: "standalone page to share" },
   { id: "csv", label: "CSV", hint: "one row per port, for spreadsheets" },
-  { id: "json", label: "JSON", hint: "Cartograph's parsed result" },
+  { id: "json", label: "JSON", hint: "Wardmap's parsed result" },
   { id: "xml", label: "nmap XML", hint: "the original -oX output" },
   { id: "normal", label: "Normal text", hint: "like nmap -oN" },
   { id: "grepable", label: "Grepable text", hint: "like nmap -oG" },

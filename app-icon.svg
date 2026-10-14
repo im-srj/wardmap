@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.5 -1.5 35 35">
+  <!-- Wardmap: a shield whose two-pointed base is a W, over a radar sweep.
+       Source of app-icon.png: re-render at 1024px, then `npm run tauri icon app-icon.png`. -->
+  <defs>
+    <radialGradient id="sweep" cx="16.0" cy="14.5" r="10.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4cc9f0" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#4cc9f0" stop-opacity="0.55"/>
+    </radialGradient>
+    <clipPath id="shield"><path d="M16 3.8 26.5 7V14c0 4.7-1.7 8.8-4.6 13L16 20.6l-5.9 6.4C7.2 22.8 5.5 18.7 5.5 14V7Z"/></clipPath>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="#11151d"/>
+  <g clip-path="url(#shield)">
+    <path d="M16.0 14.5 16.0 4.00A10.5 10.5 0 0 1 24.27 8.04Z" fill="url(#sweep)"/>
+    <circle cx="16.0" cy="14.5" r="5" fill="none" stroke="#4cc9f0" stroke-opacity="0.35" stroke-width="0.8"/>
+    <circle cx="16.0" cy="14.5" r="9.5" fill="none" stroke="#4cc9f0" stroke-opacity="0.25" stroke-width="0.8"/>
+    <line x1="16.0" y1="14.5" x2="24.27" y2="8.04" stroke="#4cc9f0" stroke-width="1"/>
+  </g>
+  <path d="M16 3.8 26.5 7V14c0 4.7-1.7 8.8-4.6 13L16 20.6l-5.9 6.4C7.2 22.8 5.5 18.7 5.5 14V7Z" fill="none" stroke="#4cc9f0" stroke-width="1.6" stroke-linejoin="round"/>
+  <circle cx="16.0" cy="14.5" r="1.5" fill="#4cc9f0"/>
+  <circle cx="19.40" cy="8.60" r="1.25" fill="#e7eaf0"/>
+  <circle cx="11.60" cy="17.90" r="1.1" fill="#e7eaf0" fill-opacity="0.6"/>
+</svg>
