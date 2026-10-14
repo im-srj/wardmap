@@ -83,7 +83,7 @@ pub async fn run_nmap_scan(
     .map_err(|e| e.to_string())?
 }
 
-/// Parse a command the way nmap would and report Cartograph's checks — the
+/// Parse a command the way nmap would and report Wardmap's checks — the
 /// live feedback behind the editable command line and the option builder.
 #[tauri::command]
 pub fn analyze_command(command: String) -> Analysis {
@@ -328,7 +328,7 @@ pub async fn import_zenmap_profiles(app: AppHandle) -> Result<Option<ImportRepor
     .map_err(|e| e.to_string())?
 }
 
-/// A history label as a file-name stem: `cartograph-192.168.1.0_24`.
+/// A history label as a file-name stem: `wardmap-192.168.1.0_24`.
 fn file_stem(label: &str) -> String {
     let safe: String = label
         .chars()
@@ -341,7 +341,7 @@ fn file_stem(label: &str) -> String {
         })
         .take(60)
         .collect();
-    format!("cartograph-{}", safe.trim_matches('_'))
+    format!("wardmap-{}", safe.trim_matches('_'))
 }
 
 /// Export a saved scan: render it, ask where to save it (native dialog),

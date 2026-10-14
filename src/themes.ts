@@ -27,7 +27,7 @@ export const THEMES: Theme[] = [
 ];
 
 export const DEFAULT_THEME = "midnight";
-const STORAGE_KEY = "cartograph.theme";
+const STORAGE_KEY = "wardmap.theme";
 
 /** Saved theme id, falling back to the default if storage is unavailable or
  *  holds an id we no longer ship. */

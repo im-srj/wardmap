@@ -1,7 +1,7 @@
-# Project: Cartograph
+# Project: Wardmap
 
 ## What this is
-Cartograph is a modern, actively-maintained GUI for Nmap, filling the gap left by Zenmap
+Wardmap is a modern, actively-maintained GUI for Nmap, filling the gap left by Zenmap
 (unmaintained since 2019, no Apple Silicon build, Python 2/GTK). Full
 rationale and competitive landscape: see `docs/BRIEF.md` (paste in the
 project brief doc if you want it versioned alongside the code).
@@ -457,3 +457,18 @@ Next: M7 — packaging (incl. macOS/Windows elevation from M11).
 Next: on any machine, `git checkout main && git pull`, then clear the pending
 GUI checks above (themes, exposure map, device ID, M8–M12), then start M7 —
 packaging — on a fresh `m7-packaging` branch.
+
+### Renamed Cartograph → Wardmap (2026-10-14)
+"-map" without "Nmap" (trademark), name checked free on GitHub/brew/winget.
+Bundle id `com.cartograph.app` → `io.github.im-srj.wardmap` (old one ended in
+`.app`, which clashes with macOS bundles); crate `wardmap`/`wardmap_lib`, DB
+file `wardmap.sqlite3`. On first launch `db::adopt_legacy` moves the old
+`com.cartograph.app/cartograph.sqlite3` into the new data dir (tested). The
+saved theme (webview localStorage) resets once. Log entries above keep the old
+names. Still to do by hand: rename the GitHub repo (then README clone URL) and
+the local checkout folder.
+New logo at the same time: a shield whose two-pointed base is a W, over a radar
+sweep. `app-icon.svg` is the source; `app-icon.png` (1024px, rendered from it
+with headless Chrome — ImageMagick's SVG renderer drops gradients/clips) feeds
+`npm run tauri icon` (delete the android/ios dirs it creates). The sidebar
+`BrandMark` is a simplified, CSS-themed copy of the same drawing.

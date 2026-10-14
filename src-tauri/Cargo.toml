@@ -1,15 +1,15 @@
 [package]
-name = "cartograph"
+name = "wardmap"
 version = "0.1.0"
 description = "A modern, actively-maintained GUI for Nmap"
 edition = "2021"
 
 [lib]
-name = "cartograph_lib"
+name = "wardmap_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "cartograph"
+name = "wardmap"
 path = "src/main.rs"
 
 [build-dependencies]

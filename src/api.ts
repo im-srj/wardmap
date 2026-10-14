@@ -42,7 +42,7 @@ export function startScan(
   });
 }
 
-/** Parse a command the way nmap would, plus Cartograph's checks. */
+/** Parse a command the way nmap would, plus Wardmap's checks. */
 export async function analyzeCommand(command: string): Promise<CmdAnalysis> {
   return invoke<CmdAnalysis>("analyze_command", { command });
 }

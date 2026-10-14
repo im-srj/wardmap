@@ -40,6 +40,20 @@ pub struct StoredScan {
     pub elapsed_secs: Option<f64>,
 }
 
+/// Move a database left at `old` (e.g. under the app's previous name) to
+/// `new`, unless `new` already exists. Returns whether anything was moved.
+pub fn adopt_legacy(old: &Path, new: &Path) -> std::io::Result<bool> {
+    if new.exists() || !old.is_file() {
+        return Ok(false);
+    }
+    // rename can't cross filesystems; copy then remove the old one instead.
+    if std::fs::rename(old, new).is_err() {
+        std::fs::copy(old, new)?;
+        std::fs::remove_file(old)?;
+    }
+    Ok(true)
+}
+
 /// Open (creating if needed) the database at `path` and ensure the schema.
 pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
@@ -439,7 +453,7 @@ mod tests {
         // Proves the M3 acceptance ("past scans survive a restart") at the
         // storage layer: write with one connection, drop it (= app close),
         // reopen the same file (= app restart), data is still there.
-        let dir = std::env::temp_dir().join(format!("cartograph-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("wardmap-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("persist.sqlite3");
         let _ = std::fs::remove_file(&path);
@@ -458,6 +472,32 @@ mod tests {
 
         std::fs::remove_file(&path).ok();
         std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn adopts_legacy_database_once() {
+        let dir = std::env::temp_dir().join(format!("wardmap-adopt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (old, new) = (dir.join("old.sqlite3"), dir.join("new.sqlite3"));
+        let _ = std::fs::remove_file(&new);
+
+        let result = parse_nmap_xml(SAMPLE).unwrap();
+        insert(&open(&old).unwrap(), "legacy-target", &result);
+
+        assert!(adopt_legacy(&old, &new).unwrap());
+        assert!(!old.exists());
+        assert_eq!(
+            list_scans(&open(&new).unwrap()).unwrap()[0].target,
+            "legacy-target"
+        );
+
+        // Never overwrites a database that's already there.
+        insert(&open(&old).unwrap(), "stale", &result);
+        assert!(!adopt_legacy(&old, &new).unwrap());
+        assert!(old.exists());
+        assert_eq!(list_scans(&open(&new).unwrap()).unwrap().len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
