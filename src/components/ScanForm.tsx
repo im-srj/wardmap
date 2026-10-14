@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { findOption, setOption } from "../options";
 import { PRESETS, sameOptions } from "../presets";
 import type { CmdIssue, CmdItem, Profile, StoredScan } from "../types";
 import { CommandPreview } from "./CommandPreview";
@@ -44,8 +43,6 @@ interface Props {
   collapsible: boolean;
 }
 
-const SCRIPT_DEF = findOption("--script")!;
-
 export function ScanForm({
   target,
   onTargetChange,
@@ -73,18 +70,6 @@ export function ScanForm({
     PRESETS.find((p) => sameOptions(items, p.items))?.label ??
     profiles.find((p) => sameOptions(items, p.items))?.name;
 
-  // The script browser edits the --script option's comma list. Categories or
-  // expressions typed into the command line ride along untouched.
-  const scripts = (
-    items.find((i) => i.name === "--script")?.value ?? ""
-  )
-    .split(",")
-    .filter(Boolean);
-  function onScriptsChange(ids: string[]) {
-    onItemsChange(
-      setOption(items, SCRIPT_DEF, ids.length ? ids.join(",") : undefined),
-    );
-  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -188,8 +173,8 @@ export function ScanForm({
       )}
 
       <ScriptBrowser
-        selected={scripts}
-        onChange={onScriptsChange}
+        items={items}
+        onChange={onItemsChange}
         collapsed={!showOptions}
       />
 
