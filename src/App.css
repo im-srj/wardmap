@@ -1549,6 +1549,14 @@ select {
 .opt-row__tags {
   flex: 0 0 auto;
 }
+.nse__whole {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
 .opt-footnote {
   margin: 0;
   color: var(--text-faint);
