@@ -47,6 +47,16 @@ export function findOption(name: string): OptionDef | undefined {
   return BY_NAME.get(name);
 }
 
+/** nmap's "Scripts (NSE)" section. Its options are edited in the script
+ *  browser, not in the All-options panel, so they appear in one place only. */
+export const SCRIPT_SECTION = SECTIONS.find((s) => s.id === "scripts")!;
+
+const SCRIPT_NAMES = new Set(SCRIPT_SECTION.options.map((o) => o.name));
+
+export function isScriptOption(name: string): boolean {
+  return SCRIPT_NAMES.has(name);
+}
+
 /** The canonical item for a catalogue option — same tokens the backend's
  *  parser would produce (mirrored in the Rust catalogue test). */
 export function makeItem(def: OptionDef, value: string | null): CmdItem {
