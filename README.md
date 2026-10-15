@@ -55,6 +55,30 @@ its XML output.
 - **No telemetry, no network calls of its own.** The only traffic Wardmap
   sends is the scans you start, plus local mDNS lookups for hosts on your LAN.
 
+## Install
+
+Download an installer from the
+[Releases page](https://github.com/im-srj/wardmap/releases) (none published
+yet; the first one is being prepared). You also need **nmap**, which Wardmap
+runs but doesn't include:
+
+| OS | Wardmap | nmap |
+|---|---|---|
+| Debian, Ubuntu | `sudo apt install ./Wardmap_<version>_amd64.deb` | installed for you with the `.deb` |
+| Fedora, openSUSE | `sudo dnf install ./Wardmap-<version>-1.x86_64.rpm` | installed for you with the `.rpm` |
+| Any Linux | `chmod +x Wardmap_<version>_amd64.AppImage`, then run it | your distro's `nmap` package |
+| macOS (Apple Silicon or Intel) | open the `.dmg`, drag Wardmap to Applications | `brew install nmap` |
+| Windows | run `Wardmap_<version>_x64-setup.exe` | the installer from [nmap.org/download](https://nmap.org/download) (includes Npcap) |
+
+The builds aren't code-signed yet, so the first launch needs one extra step:
+
+- **macOS:** if it says Wardmap "can't be opened", right-click the app, choose
+  **Open**, then **Open** again.
+- **Windows:** on "Windows protected your PC", click **More info**, then
+  **Run anyway**.
+
+Homebrew and winget packages are planned.
+
 ## Requirements
 
 | | |
@@ -75,8 +99,8 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
 ## Getting started
 
 ```sh
-git clone git@github.com:im-srj/cartograph.git
-cd cartograph
+git clone git@github.com:im-srj/wardmap.git
+cd wardmap
 npm install
 npm run tauri dev      # run in development mode
 npm run tauri build    # build a release bundle (src-tauri/target/release/bundle/)
@@ -189,6 +213,21 @@ cargo run --example export_demo -- scan.xml normal   # render an export format
 CI (`.github/workflows/ci.yml`) runs `cargo check` and `tsc --noEmit` on every
 push.
 
+### Releasing
+
+1. Set the new version in `package.json`, `src-tauri/Cargo.toml` and
+   `src-tauri/tauri.conf.json` (all three must match), and merge to `main`.
+2. Tag it and push the tag:
+   ```sh
+   git checkout main && git pull
+   git tag v0.1.0 && git push origin v0.1.0
+   ```
+3. `.github/workflows/release.yml` checks the versions, builds on Linux,
+   macOS and Windows, and attaches the installers to a **draft** release.
+4. Download and try them, then press **Publish release** on GitHub.
+
+Never bundle nmap or its data files into a package (see [License](#license)).
+
 ### Contributing
 
 - Make small commits, one logical change each, with an imperative subject
@@ -211,7 +250,7 @@ push.
 | M9–M10: full option catalogue, editable command line | Done |
 | M11: root scans | Done on Linux; macOS/Windows pending |
 | M12: profiles, re-run, import/export, queue | Done |
-| **M7: packaging** (Homebrew, AppImage/deb, winget) | **Next** |
+| **M7: packaging** (Homebrew, AppImage/deb, winget) | **In progress**: license and release builds done |
 
 Details and open questions: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -222,7 +261,19 @@ Unauthorised scanning may be illegal where you live.
 
 ## License
 
-No license has been chosen yet. Until one is added, all rights are reserved.
-Nmap itself is distributed under the
-[Nmap Public Source License](https://nmap.org/npsl/). Wardmap runs it as a
-separate program and doesn't bundle it.
+Wardmap is free software, licensed under the
+[GNU General Public License, version 2 or (at your option) any later
+version](LICENSE) (`GPL-2.0-or-later`).
+
+**Nmap is not part of Wardmap.** Nmap is distributed under the
+[Nmap Public Source License](https://nmap.org/npsl/) (NPSL), a GPLv2-based
+license with extra terms. Wardmap never bundles or redistributes Nmap or any
+of its files: you install nmap yourself, and Wardmap runs that copy as a
+separate program and reads its output. It also reads one of your nmap
+install's data files (`nmap-mac-prefixes`) to name network-card vendors.
+
+Because the NPSL treats software "designed specifically to execute" Nmap and
+parse its results as a derivative work, Wardmap is copyleft (like Nmap), and
+the project has asked the Nmap project to confirm this arrangement. If you
+package Wardmap, keep it that way: depend on the system's nmap rather than
+shipping it.

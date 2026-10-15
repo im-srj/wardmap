@@ -472,3 +472,35 @@ sweep. `app-icon.svg` is the source; `app-icon.png` (1024px, rendered from it
 with headless Chrome — ImageMagick's SVG renderer drops gradients/clips) feeds
 `npm run tauri icon` (delete the android/ios dirs it creates). The sidebar
 `BrandMark` is a simplified, CSS-themed copy of the same drawing.
+
+### M7 — Packaging, step 1: license (2026-10-15)
+Repo renamed to `wardmap` on GitHub. License chosen: **GPL-2.0-or-later**
+(`LICENSE` = official gnu.org text; SPDX in Cargo.toml + package.json; Tauri
+bundles inherit it from Cargo.toml). Why: NPSL 0.95 §3 treats software
+"designed specifically to execute [Nmap] and parse the results" (and software
+reading Nmap's data files — we read `nmap-mac-prefixes`) as a derivative work
+that may not ship under plain GPL without permission. Copyleft GPLv2-or-later
+is the closest fit; a confirmation/waiver request goes to sales@nmap.com (the
+NPSL's permission contact). **Rule for packaging: never bundle nmap or its
+data files** — depend on the user's/system's nmap. README "License" section
+explains this for packagers.
+
+### M7 — step 2: release builds (2026-10-15; CI run pending)
+- `.github/workflows/release.yml`: on a `v*` tag, a `version` job checks the
+  tag equals the version in package.json, Cargo.toml AND tauri.conf.json
+  (tested locally both ways), then `tauri-action` builds Linux
+  (ubuntu-22.04 for older glibc), macOS (universal) and Windows, and attaches
+  everything to a **draft** release (release notes cover nmap, unsigned-build
+  first launch, Linux-only root scans).
+- `.deb` and `.rpm` declare `Depends: nmap` (`bundle.linux.*.depends`), deb
+  section `net`. Built locally: `Wardmap_0.1.0_amd64.deb` (verified
+  `Depends: nmap, …`), `Wardmap-0.1.0-1.x86_64.rpm`, `.AppImage`. Gotcha: the
+  AppImage step downloads helpers from GitHub; on a slow link it can fail
+  with `timeout: global` — just re-run (`--bundles appimage`).
+- README: "Install" section (per-OS table + unsigned first-launch steps) and
+  "Releasing" (bump 3 files → tag → review draft → publish).
+- Not done: never run on GitHub yet (macOS/Windows bundles unverified), no
+  signing. Next: tag `v0.1.0` to try it — the release is only a draft, so
+  if a job fails, delete the draft + tag, fix, re-tag. (Don't use `-rc`
+  versions: Windows .msi needs a purely numeric version.) Then Homebrew tap
+  + winget.

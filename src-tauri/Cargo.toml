@@ -2,6 +2,7 @@
 name = "wardmap"
 version = "0.1.0"
 description = "A modern, actively-maintained GUI for Nmap"
+license = "GPL-2.0-or-later"
 edition = "2021"
 
 [lib]

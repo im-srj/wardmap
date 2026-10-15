@@ -1,0 +1,101 @@
+name: Release
+
+# Push a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to
+# build the installers on Linux, macOS and Windows and attach them to a DRAFT
+# GitHub Release. Nothing is published until you review the draft and press
+# "Publish release".
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Check versions match the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag with package.json, Cargo.toml and tauri.conf.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo=$(sed -n 's/^version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml | head -n1)
+          echo "tag=$tag package.json=$pkg tauri.conf.json=$conf Cargo.toml=$cargo"
+          if [ "$tag" != "$pkg" ] || [ "$tag" != "$conf" ] || [ "$tag" != "$cargo" ]; then
+            echo "::error::Tag v$tag doesn't match the version in all three files. Bump them together, then re-tag."
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04's older glibc lets the Linux builds run on more distros.
+          - name: Linux
+            os: ubuntu-22.04
+            args: ""
+          # One app that runs natively on both Apple Silicon and Intel Macs.
+          - name: macOS
+            os: macos-latest
+            args: "--target universal-apple-darwin"
+          - name: Windows
+            os: windows-latest
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.name == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.name == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Wardmap ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+          releaseBody: |
+            **Wardmap needs nmap installed** (it runs your own copy; nmap is not bundled):
+            Linux `sudo apt install nmap` (the .deb/.rpm pull it in for you) · macOS `brew install nmap` · Windows: the installer from https://nmap.org/download (includes Npcap).
+
+            **Which file?**
+            - **Linux:** `.deb` (Debian/Ubuntu: `sudo apt install ./Wardmap_*.deb`), `.rpm` (Fedora/openSUSE), or `.AppImage` (any distro: `chmod +x`, then run it).
+            - **macOS:** `.dmg` (Apple Silicon and Intel).
+            - **Windows:** `-setup.exe` (recommended) or `.msi`.
+
+            **These builds are not code-signed yet.**
+            - macOS: if it says Wardmap "can't be opened", right-click the app → **Open** → **Open**, or run `xattr -dr com.apple.quarantine /Applications/Wardmap.app`.
+            - Windows: on "Windows protected your PC", click **More info** → **Run anyway**.
+
+            **Known limits:** "Run as root" scans (SYN, UDP, OS detection…) work on Linux only for now. Scan progress on Windows is untested.
+
+            Only scan hosts you own or are authorized to test.
