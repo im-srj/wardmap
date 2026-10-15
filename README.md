@@ -290,8 +290,7 @@ of its files: you install nmap yourself, and Wardmap runs that copy as a
 separate program and reads its output. It also reads one of your nmap
 install's data files (`nmap-mac-prefixes`) to name network-card vendors.
 
-Because the NPSL treats software "designed specifically to execute" Nmap and
-parse its results as a derivative work, Wardmap is copyleft (like Nmap), and
-the project has asked the Nmap project to confirm this arrangement. If you
-package Wardmap, keep it that way: depend on the system's nmap rather than
+The NPSL describes software "designed specifically to execute" Nmap and parse
+its results as a derivative work, so Wardmap is copyleft, like Nmap. If you
+package Wardmap, keep Nmap separate: depend on the system's nmap rather than
 shipping it.
