@@ -472,3 +472,17 @@ sweep. `app-icon.svg` is the source; `app-icon.png` (1024px, rendered from it
 with headless Chrome — ImageMagick's SVG renderer drops gradients/clips) feeds
 `npm run tauri icon` (delete the android/ios dirs it creates). The sidebar
 `BrandMark` is a simplified, CSS-themed copy of the same drawing.
+
+### M7 — Packaging, step 1: license (2026-10-15)
+Repo renamed to `wardmap` on GitHub. License chosen: **GPL-2.0-or-later**
+(`LICENSE` = official gnu.org text; SPDX in Cargo.toml + package.json; Tauri
+bundles inherit it from Cargo.toml). Why: NPSL 0.95 §3 treats software
+"designed specifically to execute [Nmap] and parse the results" (and software
+reading Nmap's data files — we read `nmap-mac-prefixes`) as a derivative work
+that may not ship under plain GPL without permission. Copyleft GPLv2-or-later
+is the closest fit; a confirmation/waiver request goes to sales@nmap.com (the
+NPSL's permission contact). **Rule for packaging: never bundle nmap or its
+data files** — depend on the user's/system's nmap. README "License" section
+explains this for packagers.
+Next: release workflow (tauri-action on `v*` tags → draft GitHub Release),
+README install section, Homebrew tap, winget.

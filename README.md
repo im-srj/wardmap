@@ -75,8 +75,8 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
 ## Getting started
 
 ```sh
-git clone git@github.com:im-srj/cartograph.git
-cd cartograph
+git clone git@github.com:im-srj/wardmap.git
+cd wardmap
 npm install
 npm run tauri dev      # run in development mode
 npm run tauri build    # build a release bundle (src-tauri/target/release/bundle/)
@@ -222,7 +222,19 @@ Unauthorised scanning may be illegal where you live.
 
 ## License
 
-No license has been chosen yet. Until one is added, all rights are reserved.
-Nmap itself is distributed under the
-[Nmap Public Source License](https://nmap.org/npsl/). Wardmap runs it as a
-separate program and doesn't bundle it.
+Wardmap is free software, licensed under the
+[GNU General Public License, version 2 or (at your option) any later
+version](LICENSE) (`GPL-2.0-or-later`).
+
+**Nmap is not part of Wardmap.** Nmap is distributed under the
+[Nmap Public Source License](https://nmap.org/npsl/) (NPSL), a GPLv2-based
+license with extra terms. Wardmap never bundles or redistributes Nmap or any
+of its files: you install nmap yourself, and Wardmap runs that copy as a
+separate program and reads its output. It also reads one of your nmap
+install's data files (`nmap-mac-prefixes`) to name network-card vendors.
+
+Because the NPSL treats software "designed specifically to execute" Nmap and
+parse its results as a derivative work, Wardmap is copyleft (like Nmap), and
+the project has asked the Nmap project to confirm this arrangement. If you
+package Wardmap, keep it that way: depend on the system's nmap rather than
+shipping it.
