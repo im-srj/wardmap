@@ -161,16 +161,15 @@ export function ScanForm({
         </button>
       )}
 
-      {showOptions && (
-        <ProfilePicker
-          items={items}
-          onApply={onItemsChange}
-          profiles={profiles}
-          onSave={onSaveProfile}
-          onDelete={onDeleteProfile}
-          onImportZenmap={onImportZenmap}
-        />
-      )}
+      <ProfilePicker
+        items={items}
+        onApply={onItemsChange}
+        profiles={profiles}
+        onSave={onSaveProfile}
+        onDelete={onDeleteProfile}
+        onImportZenmap={onImportZenmap}
+        collapsed={!showOptions}
+      />
 
       <ScriptBrowser
         items={items}
