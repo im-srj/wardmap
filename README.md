@@ -181,7 +181,6 @@ src-tauri/src/           Rust backend
   export.rs              Export formats
 src-tauri/tests/fixtures Saved nmap XML used by the tests
 src-tauri/examples/      Small CLI harnesses (scan_demo, identify_demo, export_demo)
-docs/ROADMAP.md          Plan and design notes for the remaining milestones
 ```
 
 ## Development
@@ -241,16 +240,19 @@ Never bundle nmap or its data files into a package (see [License](#license)).
 
 ## Roadmap
 
-| Milestone | State |
-|---|---|
-| M0–M6: scaffold, XML parsing, UI, history, diff, map, NSE | Done |
-| M8: async engine, progress, cancel | Done |
-| M9–M10: full option catalogue, editable command line | Done |
-| M11: root scans | Done on Linux; macOS/Windows pending |
-| M12: profiles, re-run, import/export, queue | Done |
-| **M7: packaging** (Homebrew, AppImage/deb, winget) | **In progress**: license and release builds done |
+Planned next:
 
-Details and open questions: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- **Homebrew and winget packages**, so `brew install` / `winget install`
+  work on a clean machine.
+- **Signed macOS and Windows builds**, so the first launch needs no extra
+  steps.
+- **Root scans on macOS and Windows** (SYN, UDP, OS detection…). They work
+  on Linux today.
+- **"Changes since last scan" on the exposure map**, building on the existing
+  scan diff.
+
+Ideas and bug reports are welcome in
+[Issues](https://github.com/im-srj/wardmap/issues).
 
 ## Related projects
 
