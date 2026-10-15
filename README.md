@@ -55,6 +55,30 @@ its XML output.
 - **No telemetry, no network calls of its own.** The only traffic Wardmap
   sends is the scans you start, plus local mDNS lookups for hosts on your LAN.
 
+## Install
+
+Download an installer from the
+[Releases page](https://github.com/im-srj/wardmap/releases) (none published
+yet; the first one is being prepared). You also need **nmap**, which Wardmap
+runs but doesn't include:
+
+| OS | Wardmap | nmap |
+|---|---|---|
+| Debian, Ubuntu | `sudo apt install ./Wardmap_<version>_amd64.deb` | installed for you with the `.deb` |
+| Fedora, openSUSE | `sudo dnf install ./Wardmap-<version>-1.x86_64.rpm` | installed for you with the `.rpm` |
+| Any Linux | `chmod +x Wardmap_<version>_amd64.AppImage`, then run it | your distro's `nmap` package |
+| macOS (Apple Silicon or Intel) | open the `.dmg`, drag Wardmap to Applications | `brew install nmap` |
+| Windows | run `Wardmap_<version>_x64-setup.exe` | the installer from [nmap.org/download](https://nmap.org/download) (includes Npcap) |
+
+The builds aren't code-signed yet, so the first launch needs one extra step:
+
+- **macOS:** if it says Wardmap "can't be opened", right-click the app, choose
+  **Open**, then **Open** again.
+- **Windows:** on "Windows protected your PC", click **More info**, then
+  **Run anyway**.
+
+Homebrew and winget packages are planned.
+
 ## Requirements
 
 | | |
@@ -189,6 +213,21 @@ cargo run --example export_demo -- scan.xml normal   # render an export format
 CI (`.github/workflows/ci.yml`) runs `cargo check` and `tsc --noEmit` on every
 push.
 
+### Releasing
+
+1. Set the new version in `package.json`, `src-tauri/Cargo.toml` and
+   `src-tauri/tauri.conf.json` (all three must match), and merge to `main`.
+2. Tag it and push the tag:
+   ```sh
+   git checkout main && git pull
+   git tag v0.1.0 && git push origin v0.1.0
+   ```
+3. `.github/workflows/release.yml` checks the versions, builds on Linux,
+   macOS and Windows, and attaches the installers to a **draft** release.
+4. Download and try them, then press **Publish release** on GitHub.
+
+Never bundle nmap or its data files into a package (see [License](#license)).
+
 ### Contributing
 
 - Make small commits, one logical change each, with an imperative subject
@@ -211,7 +250,7 @@ push.
 | M9–M10: full option catalogue, editable command line | Done |
 | M11: root scans | Done on Linux; macOS/Windows pending |
 | M12: profiles, re-run, import/export, queue | Done |
-| **M7: packaging** (Homebrew, AppImage/deb, winget) | **Next** |
+| **M7: packaging** (Homebrew, AppImage/deb, winget) | **In progress**: license and release builds done |
 
 Details and open questions: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
