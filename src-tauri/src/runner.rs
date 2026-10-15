@@ -332,14 +332,15 @@ mod pty {
     pub fn attach(cmd: &mut Command) -> Option<File> {
         let (mut master, mut slave) = (-1, -1);
         // SAFETY: openpty writes two fds into the out-params; null name/
-        // termios/winsize are permitted.
+        // termios/winsize are permitted. Those two are `*const` on Linux but
+        // `*mut` on macOS; null_mut() coerces to both.
         let rc = unsafe {
             libc::openpty(
                 &mut master,
                 &mut slave,
                 std::ptr::null_mut(),
-                std::ptr::null(),
-                std::ptr::null(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
             )
         };
         if rc != 0 {
