@@ -5,10 +5,8 @@ type any nmap command, watch them run, and keep every result. You can compare
 scans over time, see what a network exposes, and browse NSE scripts, all
 locally.
 
-Wardmap is meant to replace [Zenmap](https://nmap.org/zenmap/), which has
-been unmaintained since 2019, is Python 2/GTK, and has no Apple Silicon build.
-It does **not** reimplement Nmap: it runs the real `nmap` binary and parses
-its XML output.
+Wardmap is an independent project, not affiliated with Nmap. It does **not**
+reimplement Nmap: it runs the real `nmap` binary and parses its XML output.
 
 > **Status: pre-release (v0.1.0).** It works on Linux and is used day to day
 > there. macOS and Windows builds aren't verified yet, and there are no
@@ -253,6 +251,26 @@ Never bundle nmap or its data files into a package (see [License](#license)).
 | **M7: packaging** (Homebrew, AppImage/deb, winget) | **In progress**: license and release builds done |
 
 Details and open questions: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## Related projects
+
+Wardmap is one of several front ends for Nmap. If it doesn't fit your needs,
+one of these may:
+
+| Project | Type | Notes |
+|---|---|---|
+| [Zenmap](https://nmap.org/zenmap/) | Desktop (Python 3, GTK) | The official Nmap GUI, shipped with Nmap. |
+| [NmapSI4](https://github.com/nmapsi4/nmapsi4) | Desktop (Qt 6) | Long-running Qt front end that aims to cover the full set of Nmap options. Latest version is 0.5 alpha; packaged by Debian and other distros. |
+| [Fnmap](https://github.com/gmckesey/fnmap) | Desktop (Flutter) | Flutter front end for Nmap. Available on [Flathub](https://flathub.org/apps/com.krioltech.fnmap) and Snap. |
+| [WebMap](https://github.com/SECUREFOREST/WebMap) | Web (Docker) | Dashboard for Nmap XML reports: charts, host notes and labels, PDF reports. |
+| [NmapWebUI](https://www.linuxlinks.com/nmapwebui-web-based-interface-nmap-network-scanner/) | Web (Docker) | Self-hosted web UI with user roles, scheduled scans and run history. |
+
+**What Wardmap focuses on:** a live, editable command line that stays in sync
+with the option builder (and is checked before it runs); scan-to-scan diffs
+that include service-version and TLS-certificate changes; an exposure map
+with plain-language service notes; LAN device identification (MAC vendor,
+mDNS); and a local SQLite history that stores the raw XML. It is a desktop
+app with no server and no scheduled scans.
 
 ## Responsible use
 

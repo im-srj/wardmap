@@ -1,10 +1,11 @@
 # Project: Wardmap
 
 ## What this is
-Wardmap is a modern, actively-maintained GUI for Nmap, filling the gap left by Zenmap
-(unmaintained since 2019, no Apple Silicon build, Python 2/GTK). Full
-rationale and competitive landscape: see `docs/BRIEF.md` (paste in the
-project brief doc if you want it versioned alongside the code).
+Wardmap is a modern GUI for Nmap. Zenmap (the official Nmap GUI) is actively
+maintained (Python 3 since Nmap 7.94, still updated in 7.991), so never
+describe it as unmaintained; README's "Related projects" lists the other
+front ends. Full rationale: see `docs/BRIEF.md` (paste in the project brief
+doc if you want it versioned alongside the code).
 
 We are NOT reimplementing Nmap's scan engine. We wrap the real `nmap`
 binary as a subprocess and parse its XML output. All novel value lives in:
