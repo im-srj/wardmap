@@ -1036,6 +1036,31 @@ mod tests {
     }
 
     #[test]
+    fn saved_profile_reads_back_as_the_same_options() {
+        // The UI saves `nmap <options>` (quoted for display) and later checks
+        // the profile's re-parsed items against the current ones to show it
+        // as selected — so the round trip must be lossless.
+        for cmd in [
+            "nmap -T4 -A -v",
+            "nmap -p- -sV",
+            "nmap -PS80,443 -g 53 --script 'default or (discovery and safe)'",
+            "nmap --script-args 'http.useragent=Mozilla 5' -oX - -sC",
+            "sudo nmap -sS -O 10.0.0.0/24",
+        ] {
+            let options = |c: &str| -> Vec<Vec<String>> {
+                analyze_text(c)
+                    .items
+                    .into_iter()
+                    .filter(|i| i.kind != Kind::Target)
+                    .map(|i| i.tokens)
+                    .collect()
+            };
+            let saved = options_only(cmd);
+            assert_eq!(options(&format!("nmap {saved}")), options(cmd), "{cmd}");
+        }
+    }
+
+    #[test]
     fn options_only_strips_sudo_binary_and_targets() {
         assert_eq!(
             options_only("sudo nmap -sS -T4 scanme.nmap.org 10.0.0.1"),

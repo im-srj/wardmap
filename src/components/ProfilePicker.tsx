@@ -19,6 +19,9 @@ interface Props {
   ) => Promise<Profile>;
   onDelete: (id: number) => Promise<void>;
   onImportZenmap: () => void;
+  /** Hide the picker but stay mounted, so which saved profile the options
+   *  came from (for "Update") survives ScanForm folding its options away. */
+  collapsed?: boolean;
 }
 
 /** Built-in profiles plus the user's own: pick one to load its options,
@@ -30,6 +33,7 @@ export function ProfilePicker({
   onSave,
   onDelete,
   onImportZenmap,
+  collapsed = false,
 }: Props) {
   // The saved profile the current options came from, so it can be updated.
   const [basedOnId, setBasedOnId] = useState<number | null>(null);
@@ -43,6 +47,8 @@ export function ProfilePicker({
 
   const basedOn = profiles.find((p) => p.id === basedOnId) ?? null;
   const edited = basedOn !== null && !sameOptions(items, basedOn.items);
+
+  if (collapsed) return null;
 
   async function save(id: number | null, name: string, description: string) {
     setBusy(true);
